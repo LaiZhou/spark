@@ -37,6 +37,9 @@
     <hadoop.deps.scope>compile</hadoop.deps.scope>
     <hive.deps.scope>compile</hive.deps.scope>
     <parquet.deps.scope>compile</parquet.deps.scope>
+    <h2.version>1.4.199</h2.version>
+    <junit.version>4.12</junit.version>
+    <hamcrest.version>1.3</hamcrest.version>
   </properties>
 
   <dependencies>
@@ -145,6 +148,27 @@
       <artifactId>jetty-http</artifactId>
       <scope>compile</scope>
     </dependency>
+
+    <!--test-->
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <version>${h2.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.hamcrest</groupId>
+      <artifactId>hamcrest-core</artifactId>
+      <version>${hamcrest.version}</version>
+      <scope>test</scope>
+    </dependency>
+
   </dependencies>
 
   <build>

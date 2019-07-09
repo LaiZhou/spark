@@ -2767,6 +2767,11 @@ class Dataset[T] private[sql](
    */
   def collect(): Array[T] = withAction("collect", queryExecution)(collectFromPlan)
 
+  def collectDirectly(): Array[T] = {
+    val enc = resolvedEnc.copy()
+    queryExecution.directExecutedPlan.executeDirectly().map(enc.fromRow)
+  }
+
   /**
    * Returns a Java list that contains all rows in this Dataset.
    *

@@ -31,6 +31,7 @@ import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.util.StringUtils.{PlanStringConcat, StringConcat}
 import org.apache.spark.sql.catalyst.util.truncatedString
 import org.apache.spark.sql.execution.adaptive.InsertAdaptiveSparkPlan
+import org.apache.spark.sql.execution.direct.{DirectPlan, DirectPlanConverter}
 import org.apache.spark.sql.execution.exchange.{EnsureRequirements, ReuseExchange}
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.util.Utils
@@ -90,6 +91,10 @@ class QueryExecution(
   // only used for execution.
   lazy val executedPlan: SparkPlan = tracker.measurePhase(QueryPlanningTracker.PLANNING) {
     prepareForExecution(sparkPlan)
+  }
+
+  lazy val directExecutedPlan: DirectPlan = tracker.measurePhase(QueryPlanningTracker.PLANNING) {
+    DirectPlanConverter.convert(sparkPlan)
   }
 
   /**

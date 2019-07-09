@@ -17,10 +17,13 @@
 package org.apache.spark.examples.sql
 
 // $example on:programmatic_schema$
-import java.io.File
+import java.util.concurrent.TimeUnit
+
+import org.apache.commons.lang3.time.StopWatch
+import org.codehaus.commons.compiler.ICookable
 
 import org.apache.spark.sql.Row
-import org.codehaus.commons.compiler.ICookable
+import org.apache.spark.sql.execution.direct.DirectPlanStrategies
 
 // $example off:programmatic_schema$
 // $example on:init_session$
@@ -41,13 +44,27 @@ object SparkSQLExample {
 
   def main(args: Array[String]) {
     // $example on:init_session$
-    val spark = SparkSession
-        .builder()
-        .appName("Spark SQL basic example")
-        .config("spark.some.config.option", "some-value").master("local[1]")
-        .getOrCreate()
-    //code gen dir prepare
-    val code_gen_path="target/generated-sources"
+    val SPARK_WORK_DIR = "/tmp/spark"
+    val builder = SparkSession
+      .builder()
+      .appName("Spark SQL basic example")
+      .config("spark.some.config.option", "some-value")
+      .config("spark.ui.enabled", false)
+      .config("spark.sql.warehouse.dir", SPARK_WORK_DIR)
+      .config("hive.exec.scratchdir", SPARK_WORK_DIR + "/hive")
+      .config("spark.sql.shuffle.partitions", 1)
+      .config("spark.default.parallelism", 1)
+      .config("spark.sql.catalogImplementation", "direct")
+      .config("spark.sql.codegen.wholeStage", false)
+      .master("local[1]")
+      .withExtensions(sessionExtensions =>
+        DirectPlanStrategies.strategies.foreach(strategy =>
+          sessionExtensions.injectPlannerStrategy(_ => strategy)))
+
+    val spark = builder.getOrCreate()
+
+    // code gen dir prepare
+    val code_gen_path = "target/generated-sources"
     sys.props(ICookable.SYSTEM_PROPERTY_SOURCE_DEBUGGING_ENABLE) = "true"
     sys.props(ICookable.SYSTEM_PROPERTY_SOURCE_DEBUGGING_DIR) = code_gen_path
 
@@ -64,7 +81,12 @@ object SparkSQLExample {
 
   private def runBasicDataFrameExample(spark: SparkSession): Unit = {
     // $example on:create_df$
-    val df = spark.createDataFrame(List(("a", 1, 0), ("b", 2, 1), ("c", 3, 0), ("d", 4, 1), ("e", 5, 0))).toDF("name", "age", "genda")
+    val df = spark
+      .createDataFrame(List(("a", 1, 0), ("bbb", 2, 1), ("c", 3, 0), ("ddd", 4, 1), ("e", 5, 0)))
+      .toDF("name", "age", "genda")
+    val df2 = spark
+      .createDataFrame(List(("a", 1, 0), ("b", 2, 1), ("c", 3, 0)))
+      .toDF("name", "age", "genda")
 
     //    // Displays the content of the DataFrame to stdout
     //    df.show()
@@ -127,10 +149,27 @@ object SparkSQLExample {
     //    // $example on:run_sql$
     //    // Register the DataFrame as a SQL temporary view
     df.createOrReplaceTempView("people")
-    val sqlDF = spark.sql("SELECT substring(name,0,1) as c1 ,age as c2,(select max(age)  from people ) as maxAge FROM people where age>1")
-//    sqlDF.queryExecution.debug.codegen()
+    df2.createOrReplaceTempView("people2")
 
-    sqlDF.collect()
+    //    val sqlDF = spark.sql("SELECT substring(name,0,1) as c1 ,age as c2,(select max(age)  from people ) as maxAge FROM people where age>1")
+    val sqlDF = spark.sql("SELECT substring(name,0,1) as c1 ,age as c2 FROM people where age>1")
+
+//    val sqlDF = spark.sql(
+//      "SELECT substring(t1.name,0,1) as c1 ,substring(t1.name,0,2) as c2 FROM (select distinct name from people group by name) t1,people2 t2 where t1.name=t2.name and t2.age>1")
+
+//    val rt = sqlDF.collect()
+    val s1 = StopWatch.createStarted()
+    val rt = sqlDF.collectDirectly()
+    s1.stop()
+    println("s1:" + s1.getTime(TimeUnit.MILLISECONDS))
+
+    val s2 = StopWatch.createStarted()
+    val rt2 = sqlDF.collectDirectly()
+    s2.stop()
+    println("s2:" + s2.getTime(TimeUnit.MILLISECONDS))
+
+    spark.sqlContext.clearCache()
+    println(rt.mkString(","))
     // +----+-------+
     // | age|   name|
     // +----+-------+
@@ -203,10 +242,10 @@ object SparkSQLExample {
 
     // Create an RDD of Person objects from a text file, convert it to a Dataframe
     val peopleDF = spark.sparkContext
-        .textFile("examples/src/main/resources/people.txt")
-        .map(_.split(","))
-        .map(attributes => Person(attributes(0), attributes(1).trim.toInt))
-        .toDF()
+      .textFile("examples/src/main/resources/people.txt")
+      .map(_.split(","))
+      .map(attributes => Person(attributes(0), attributes(1).trim.toInt))
+      .toDF()
     // Register the DataFrame as a temporary view
     peopleDF.createOrReplaceTempView("people")
 
@@ -250,14 +289,15 @@ object SparkSQLExample {
     val schemaString = "name age"
 
     // Generate the schema based on the string of schema
-    val fields = schemaString.split(" ")
-        .map(fieldName => StructField(fieldName, StringType, nullable = true))
+    val fields = schemaString
+      .split(" ")
+      .map(fieldName => StructField(fieldName, StringType, nullable = true))
     val schema = StructType(fields)
 
     // Convert records of the RDD (people) to Rows
     val rowRDD = peopleRDD
-        .map(_.split(","))
-        .map(attributes => Row(attributes(0), attributes(1).trim))
+      .map(_.split(","))
+      .map(attributes => Row(attributes(0), attributes(1).trim))
 
     // Apply the schema to the RDD
     val peopleDF = spark.createDataFrame(rowRDD, schema)
