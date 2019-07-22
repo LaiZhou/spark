@@ -22,7 +22,7 @@ import org.apache.spark.sql.catalyst.{InternalRow, TableIdentifier}
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.plans.logical.{LocalRelation, Project, SubqueryAlias}
 
-case class DirectLocalTableScanExec(output: Seq[Attribute], name: TableIdentifier)
+case class LocalTableScanDirectExec(output: Seq[Attribute], name: TableIdentifier)
     extends LeafDirectExecNode {
 
   override def enumerator(): Enumerator[InternalRow] = {

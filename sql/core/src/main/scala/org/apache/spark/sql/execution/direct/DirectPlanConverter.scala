@@ -34,27 +34,28 @@ object DirectPlanConverter {
       case FilterExec(condition, child) =>
         FilterDirectExec(condition, convert(child))
       case DynamicLocalTableScanExec(output, name) =>
-        DirectLocalTableScanExec(output, name)
+        LocalTableScanDirectExec(output, name)
       // TODO add more Physical Plan conversion here
-//      case p if p.isInstanceOf[HashJoin] =>
-//        val hashJoin = p.asInstanceOf[HashJoin]
-//        DirectHashJoinExec(
-//          hashJoin.leftKeys,
-//          hashJoin.rightKeys,
-//          hashJoin.joinType,
-//          hashJoin.condition,
-//          convert(hashJoin.left),
-//          convert(hashJoin.right))
 
-//      case p if p.isInstanceOf[SortMergeJoinExec] =>
-//        val sortMergeJoin = p.asInstanceOf[SortMergeJoinExec]
-//        DirectHashJoinExec(
-//          sortMergeJoin.leftKeys,
-//          sortMergeJoin.rightKeys,
-//          sortMergeJoin.joinType,
-//          sortMergeJoin.condition,
-//          convert(sortMergeJoin.left),
-//          convert(sortMergeJoin.right))
+      case p if p.isInstanceOf[HashJoin] =>
+        val hashJoin = p.asInstanceOf[HashJoin]
+        HashJoinDirectExec(
+          hashJoin.leftKeys,
+          hashJoin.rightKeys,
+          hashJoin.joinType,
+          hashJoin.condition,
+          convert(hashJoin.left),
+          convert(hashJoin.right))
+
+      case p if p.isInstanceOf[SortMergeJoinExec] =>
+        val sortMergeJoin = p.asInstanceOf[SortMergeJoinExec]
+        HashJoinDirectExec(
+          sortMergeJoin.leftKeys,
+          sortMergeJoin.rightKeys,
+          sortMergeJoin.joinType,
+          sortMergeJoin.condition,
+          convert(sortMergeJoin.left),
+          convert(sortMergeJoin.right))
 
       case p if p.isInstanceOf[BroadcastNestedLoopJoinExec] =>
         DirectPlanAdapter(p)

@@ -152,10 +152,10 @@ object SparkSQLExample {
     df2.createOrReplaceTempView("people2")
 
     //    val sqlDF = spark.sql("SELECT substring(name,0,1) as c1 ,age as c2,(select max(age)  from people ) as maxAge FROM people where age>1")
-    val sqlDF = spark.sql("SELECT substring(name,0,1) as c1 ,age as c2 FROM people where age>1")
+//    val sqlDF = spark.sql("SELECT substring(name,0,1) as c1 ,age as c2 FROM people where age>1")
 
-//    val sqlDF = spark.sql(
-//      "SELECT substring(t1.name,0,1) as c1 ,substring(t1.name,0,2) as c2 FROM (select distinct name from people group by name) t1,people2 t2 where t1.name=t2.name and t2.age>1")
+    val sqlDF = spark.sql(
+      "SELECT substring(t1.name,0,1) as c1 ,substring(t2.name,0,2) as c2 FROM people t1,people2 t2 where t1.name=t2.name and t2.age>0")
 
 //    val rt = sqlDF.collect()
     val s1 = StopWatch.createStarted()
@@ -163,12 +163,12 @@ object SparkSQLExample {
     s1.stop()
     println("s1:" + s1.getTime(TimeUnit.MILLISECONDS))
 
-    val s2 = StopWatch.createStarted()
-    val rt2 = sqlDF.collectDirectly()
-    s2.stop()
-    println("s2:" + s2.getTime(TimeUnit.MILLISECONDS))
-
-    spark.sqlContext.clearCache()
+//    val s2 = StopWatch.createStarted()
+//    val rt2 = sqlDF.collectDirectly()
+//    s2.stop()
+//    println("s2:" + s2.getTime(TimeUnit.MILLISECONDS))
+//
+//    spark.sqlContext.clearCache()
     println(rt.mkString(","))
     // +----+-------+
     // | age|   name|

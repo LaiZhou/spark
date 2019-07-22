@@ -2768,15 +2768,18 @@ class Dataset[T] private[sql](
   def collect(): Array[T] = withAction("collect", queryExecution)(collectFromPlan)
 
   def collectDirectly(): Array[T] = {
-    val enc = resolvedEnc.copy()
-    val iterator = queryExecution.directExecutedPlan.collect()
-    val data = iterator.map(enc.fromRow).toArray
-    iterator match {
-      case c: AutoCloseable =>
-        c.close()
-      case _ =>
+    try {
+      val enc = resolvedEnc.copy()
+      val iterator = queryExecution.directExecutedPlan.collect()
+      val data = iterator.map(enc.fromRow).toArray
+      iterator match {
+        case c: AutoCloseable =>
+          c.close()
+        case _ =>
+      }
+      data
+    } finally {
     }
-    data
   }
 
   /**
