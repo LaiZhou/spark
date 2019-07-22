@@ -2769,7 +2769,14 @@ class Dataset[T] private[sql](
 
   def collectDirectly(): Array[T] = {
     val enc = resolvedEnc.copy()
-    queryExecution.directExecutedPlan.executeDirectly().map(enc.fromRow)
+    val iterator = queryExecution.directExecutedPlan.collect()
+    val data = iterator.map(enc.fromRow).toArray
+    iterator match {
+      case c: AutoCloseable =>
+        c.close()
+      case _ =>
+    }
+    data
   }
 
   /**

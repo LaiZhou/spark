@@ -132,7 +132,7 @@ class SparkLocalBenchMark {
     val sql =
       "SELECT t1.*,t2.*,substring('abc',1,2)  FROM item1 t1 INNER JOIN item2 t2 ON t1.i_item_sk=t2.i_item_sk"
     runSqlForJoin(1, sql)
-    System.out.println(runSqlForJoin(200, sql))
+//    System.out.println(runSqlForJoin(200, sql))
 //    System.out.println(runSqlForJoin(2000, sql))
 //    System.out.println(runSqlForJoin(4000, sql))
 //    System.out.println(runSqlForJoin(10000, sql))

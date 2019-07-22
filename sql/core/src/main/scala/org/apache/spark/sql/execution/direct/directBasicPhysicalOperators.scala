@@ -18,17 +18,44 @@
 package org.apache.spark.sql.execution.direct
 
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression, IsNotNull, NamedExpression, NullIntolerant, PredicateHelper, SafeProjection, UnsafeProjection}
+import org.apache.spark.sql.catalyst.expressions.{
+  Attribute,
+  Expression,
+  IsNotNull,
+  NamedExpression,
+  NullIntolerant,
+  PredicateHelper,
+  UnsafeProjection
+}
+import org.apache.spark.sql.catalyst.expressions.codegen.Predicate
 
 case class ProjectDirectExec(projectList: Seq[NamedExpression], child: DirectPlan)
     extends UnaryDirectExecNode {
 
   override def output: Seq[Attribute] = projectList.map(_.toAttribute)
 
-  override def executeDirectly(): Array[InternalRow] = {
-    val project = UnsafeProjection.create(projectList, child.output)
-    project.initialize(0)
-    child.executeDirectly().map(project)
+  override def enumerator(): Enumerator[InternalRow] = {
+    new Enumerator[InternalRow] {
+
+      val project: UnsafeProjection = {
+        val project = UnsafeProjection.create(projectList, child.output)
+        project.initialize(0)
+        project
+      }
+      val inputEnumerator: Enumerator[InternalRow] = child.enumerator()
+
+      override def moveNext(): Boolean = {
+        inputEnumerator.moveNext()
+      }
+
+      override def current(): InternalRow = {
+        project.apply(inputEnumerator.current())
+      }
+
+      override def reset(): Unit = { inputEnumerator.reset() }
+
+      override def close(): Unit = { inputEnumerator.close() }
+    }
   }
 
 }
@@ -62,12 +89,32 @@ case class FilterDirectExec(condition: Expression, child: DirectPlan)
     }
   }
 
-  override def executeDirectly(): Array[InternalRow] = {
-    val predicate = newPredicate(condition, child.output)
-    predicate.initialize(0)
-    child.executeDirectly().filter { row =>
-      val r = predicate.eval(row)
-      r
+  override def enumerator(): Enumerator[InternalRow] = {
+    new Enumerator[InternalRow] {
+
+      val predicate: Predicate = {
+        val predicate: Predicate = newPredicate(condition, child.output)
+        predicate.initialize(0)
+        predicate
+      }
+      val inputEnumerator: Enumerator[InternalRow] = child.enumerator()
+
+      override def moveNext(): Boolean = {
+        while (inputEnumerator.moveNext()) {
+          if (predicate.eval(inputEnumerator.current())) {
+            return true
+          }
+        }
+        false
+      }
+
+      override def current(): InternalRow = {
+        inputEnumerator.current()
+      }
+
+      override def reset(): Unit = { inputEnumerator.reset() }
+
+      override def close(): Unit = { inputEnumerator.close() }
     }
   }
 

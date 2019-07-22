@@ -41,16 +41,21 @@ import org.apache.spark.sql.catalyst.plans.QueryPlan
 import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.types.DataType
 
-trait DirectExecutionSupport {
-  def executeDirectly(): Array[InternalRow]
-}
+abstract class DirectPlan
+    extends QueryPlan[DirectPlan]
+    with Enumerable[InternalRow]
+    with Logging {
 
-abstract class DirectPlan extends QueryPlan[DirectPlan] with Logging with DirectExecutionSupport {
-
-  @transient final val sqlContext = SparkSession.getActiveSession.map(_.sqlContext).orNull
+  final val sqlContext = SparkSession.getActiveSession.map(_.sqlContext).orNull
 
   // whether we should fallback when hitting compilation errors caused by codegen
   private val codeGenFallBack = (sqlContext == null) || sqlContext.conf.codegenFallback
+
+  def prepare(): Unit = children.foreach(_.prepare())
+
+  def collect(): Iterator[InternalRow] = {
+    new EnumeratorIterator[InternalRow](enumerator())
+  }
 
   protected def newMutableProjection(
       expressions: Seq[Expression],
@@ -129,14 +134,17 @@ trait BinaryDirectExecNode extends DirectPlan {
 case class DirectPlanAdapter(sparkPlan: SparkPlan) extends DirectPlan {
 
   override def output: Seq[Attribute] = sparkPlan.output
+
   override def children: Seq[DirectPlan] = sparkPlan.children.map(DirectPlanConverter.convert)
 
-  override def executeDirectly(): Array[InternalRow] = {
+  override def enumerator(): Enumerator[InternalRow] = {
     val s = new Stopwatch().start()
     val r = sparkPlan.executeCollect()
     s.stop()
     println(
       "sparkPlan execute spend " + s.elapsed(TimeUnit.MICROSECONDS) * 0.001 + ", " + sparkPlan)
-    r
+
+    new IterableEnumerator[InternalRow](r)
   }
+
 }

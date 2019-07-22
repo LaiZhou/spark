@@ -18,6 +18,12 @@
 package org.apache.spark.sql.execution.direct
 
 import org.apache.spark.sql.execution._
+import org.apache.spark.sql.execution.joins.{
+  BroadcastNestedLoopJoinExec,
+  CartesianProductExec,
+  HashJoin,
+  SortMergeJoinExec
+}
 
 object DirectPlanConverter {
 
@@ -30,6 +36,30 @@ object DirectPlanConverter {
       case DynamicLocalTableScanExec(output, name) =>
         DirectLocalTableScanExec(output, name)
       // TODO add more Physical Plan conversion here
+//      case p if p.isInstanceOf[HashJoin] =>
+//        val hashJoin = p.asInstanceOf[HashJoin]
+//        DirectHashJoinExec(
+//          hashJoin.leftKeys,
+//          hashJoin.rightKeys,
+//          hashJoin.joinType,
+//          hashJoin.condition,
+//          convert(hashJoin.left),
+//          convert(hashJoin.right))
+
+//      case p if p.isInstanceOf[SortMergeJoinExec] =>
+//        val sortMergeJoin = p.asInstanceOf[SortMergeJoinExec]
+//        DirectHashJoinExec(
+//          sortMergeJoin.leftKeys,
+//          sortMergeJoin.rightKeys,
+//          sortMergeJoin.joinType,
+//          sortMergeJoin.condition,
+//          convert(sortMergeJoin.left),
+//          convert(sortMergeJoin.right))
+
+      case p if p.isInstanceOf[BroadcastNestedLoopJoinExec] =>
+        DirectPlanAdapter(p)
+      case p if p.isInstanceOf[CartesianProductExec] =>
+        DirectPlanAdapter(p)
       case other => DirectPlanAdapter(other)
     }
   }

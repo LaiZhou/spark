@@ -19,36 +19,31 @@ package org.apache.spark.sql.execution.direct
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.{InternalRow, TableIdentifier}
-import org.apache.spark.sql.catalyst.expressions.{Attribute, UnsafeProjection}
+import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.plans.logical.{LocalRelation, Project, SubqueryAlias}
 
 case class DirectLocalTableScanExec(output: Seq[Attribute], name: TableIdentifier)
     extends LeafDirectExecNode {
 
-  private lazy val rows: Seq[InternalRow] = {
-    val foundRelation = SparkSession.active.sessionState.catalog.lookupRelation(name)
-    foundRelation match {
-      case SubqueryAlias(_, Project(_, LocalRelation(_, data, _))) =>
-        data
-      case other => throw new RuntimeException("unexpected Relation[" + other + "]")
+  override def enumerator(): Enumerator[InternalRow] = {
+    //    val unsafeRows: Array[InternalRow] = {
+    //    if (rows.isEmpty) {
+    //      Array.empty
+    //    } else {
+    //      val proj = UnsafeProjection.create(output, output)
+    //      rows.map(r => proj(r).copy()).toArray
+    //    }
+    //  }
+
+    // use safe rows to improve performance
+    val rows: Seq[InternalRow] = {
+      val foundRelation = SparkSession.active.sessionState.catalog.lookupRelation(name)
+      foundRelation match {
+        case SubqueryAlias(_, Project(_, LocalRelation(_, data, _))) =>
+          data
+        case other => throw new RuntimeException("unexpected Relation[" + other + "]")
+      }
     }
-  }
-  private lazy val unsafeRows: Array[InternalRow] = {
-    if (rows.isEmpty) {
-      Array.empty
-    } else {
-      val proj = UnsafeProjection.create(output, output)
-      rows.map(r => proj(r).copy()).toArray
-      // TODO use safeRows
-      // rows.toArray
-    }
-  }
-  override def executeDirectly(): Array[InternalRow] = {
-     // unsafeRows
-    if (rows.isEmpty) {
-      Array.empty
-    } else {
-      rows.toArray
-    }
+    new IterableEnumerator[InternalRow](rows)
   }
 }
