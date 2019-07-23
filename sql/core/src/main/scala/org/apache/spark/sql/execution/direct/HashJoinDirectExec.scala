@@ -17,7 +17,6 @@
 
 package org.apache.spark.sql.execution.direct
 
-import org.apache.spark.TaskContext
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.plans.JoinType
@@ -34,10 +33,20 @@ case class HashJoinDirectExec(
     with DirectHashJoin {
 
   override def enumerator(): Enumerator[InternalRow] = {
-    val relation = HashedRelation(left.collect(), buildKeys)
-    // This relation is usually used until the end of task.
-//    TaskContext.get().addTaskCompletionListener[Unit](_ => relation.close())
+    val buildEnumerator = left.enumerator()
+    val streamedEnumerator = streamedPlan.enumerator()
+    val relation =
+      HashedRelation(new EnumeratorIterator[InternalRow](buildEnumerator), buildKeys)
+    DirectExecutionContext.get().addExecutionCompletionListener { _ =>
+      relation.close()
+    }
     val iterator = join(streamedPlan.collect(), relation)
-    new IterableEnumerator[InternalRow](iterator.toIterable)
+    new IterableEnumerator[InternalRow](iterator.toIterable) {
+      override def close(): Unit = {
+        super.close()
+        buildEnumerator.close()
+        streamedEnumerator.close()
+      }
+    }
   }
 }

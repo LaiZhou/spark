@@ -163,12 +163,12 @@ object SparkSQLExample {
     s1.stop()
     println("s1:" + s1.getTime(TimeUnit.MILLISECONDS))
 
-//    val s2 = StopWatch.createStarted()
-//    val rt2 = sqlDF.collectDirectly()
-//    s2.stop()
-//    println("s2:" + s2.getTime(TimeUnit.MILLISECONDS))
-//
-//    spark.sqlContext.clearCache()
+    val s2 = StopWatch.createStarted()
+    val rt2 = sqlDF.collectDirectly()
+    s2.stop()
+    println("s2:" + s2.getTime(TimeUnit.MILLISECONDS))
+
+    spark.sqlContext.clearCache()
     println(rt.mkString(","))
     // +----+-------+
     // | age|   name|
