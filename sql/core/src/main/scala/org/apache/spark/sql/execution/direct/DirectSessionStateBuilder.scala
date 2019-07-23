@@ -120,6 +120,8 @@ class DirectSessionStateBuilder(session: SparkSession, parentState: Option[Sessi
           resolvedRelation match {
             case SubqueryAlias(name, Project(projectList, LocalRelation(output, data, _))) =>
               SubqueryAlias(name, Project(projectList, NamedLocalRelation(output, data, ident)))
+            case SubqueryAlias(name, LocalRelation(output, data, _)) =>
+              SubqueryAlias(name, NamedLocalRelation(output, data, ident))
             case _ => plan
           }
         case _ => plan

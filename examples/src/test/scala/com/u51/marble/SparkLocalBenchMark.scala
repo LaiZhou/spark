@@ -18,11 +18,14 @@ package com.u51.marble
 
 import java.util.concurrent.TimeUnit
 
+import scala.collection.JavaConverters._
+
 import com.google.common.base.Stopwatch
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import org.junit.{BeforeClass, Test}
 
 import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.execution.direct.DirectPlanStrategies
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.storage.StorageLevel
 
@@ -46,6 +49,9 @@ class SparkLocalBenchMark {
     .config("spark.sql.catalogImplementation", "direct")
     .config("spark.sql.codegen.wholeStage", false)
     .master("local[1]")
+    .withExtensions(sessionExtensions =>
+      DirectPlanStrategies.strategies.foreach(strategy =>
+        sessionExtensions.injectPlannerStrategy(_ => strategy)))
     .getOrCreate()
 
   val dfCache = CacheBuilder
@@ -77,15 +83,18 @@ class SparkLocalBenchMark {
     spark = spark.newSession()
     spark.sqlContext.clearCache()
     val fetchSql = BenchMarkUtil.generateFetchSql("item1", "i_item_sk", limit)
-    spark.read
+    val df1 = spark.read
       .format("jdbc")
       .options(connectOptions)
       .option("dbtable", s"($fetchSql) tmp ")
       .load()
       .persist(StorageLevel.MEMORY_ONLY)
+    spark
+      .createDataFrame(df1.collect().toList.asJava, df1.schema)
       .createOrReplaceTempView("item1")
     s.stop
-    s.elapsed(TimeUnit.MICROSECONDS) * 0.001 + sqlQuery(sql)
+    println(s"fetch:${s.elapsed(TimeUnit.MICROSECONDS) * 0.001}")
+    sqlQuery(sql)
 
   }
 
@@ -95,23 +104,28 @@ class SparkLocalBenchMark {
     spark = spark.newSession()
     spark.sqlContext.clearCache()
     val fetchSql1 = BenchMarkUtil.generateFetchSql("item1", "i_item_sk", limit)
-    spark.read
+    val df1 = spark.read
       .format("jdbc")
       .options(connectOptions)
       .option("dbtable", s"($fetchSql1) tmp ")
       .load()
       .persist(StorageLevel.MEMORY_ONLY)
+    spark
+      .createDataFrame(df1.collect().toList.asJava, df1.schema)
       .createOrReplaceTempView("item1")
     val fetchSql2 = BenchMarkUtil.generateFetchSql("item2", "i_item_sk", limit)
-    spark.read
+    val df2 = spark.read
       .format("jdbc")
       .options(connectOptions)
       .option("dbtable", s"($fetchSql2) tmp ")
       .load()
       .persist(StorageLevel.MEMORY_ONLY)
+    spark
+      .createDataFrame(df2.collect().toList.asJava, df2.schema)
       .createOrReplaceTempView("item2")
     s.stop
-    s.elapsed(TimeUnit.MICROSECONDS) * 0.001 + sqlQuery(sql)
+    println(s"fetch:${s.elapsed(TimeUnit.MICROSECONDS) * 0.001}")
+    sqlQuery(sql)
   }
 
   @Test
@@ -131,12 +145,13 @@ class SparkLocalBenchMark {
   def testEquiJoin(): Unit = {
     val sql =
       "SELECT t1.*,t2.*,substring('abc',1,2)  FROM item1 t1 INNER JOIN item2 t2 ON t1.i_item_sk=t2.i_item_sk"
-    runSqlForJoin(1, sql)
+//    runSqlForJoin(1, sql)
 //    System.out.println(runSqlForJoin(200, sql))
 //    System.out.println(runSqlForJoin(2000, sql))
 //    System.out.println(runSqlForJoin(4000, sql))
 //    System.out.println(runSqlForJoin(10000, sql))
-//    System.out.println(runSqlForJoin(15000, sql))
+    System.out.println(runSqlForJoin(15000, sql))
+    System.out.println(runSqlForJoin(15000, sql))
 
   }
 
