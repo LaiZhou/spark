@@ -34,6 +34,8 @@ case class DynamicLocalTableScanExec(output: Seq[Attribute], name: TableIdentifi
     foundRelation match {
       case SubqueryAlias(_, Project(_, LocalRelation(_, data, _))) =>
         data
+      case SubqueryAlias(_, LocalRelation(_, data, _)) =>
+        data
       case other => throw new RuntimeException("unexpected Relation[" + other + "]")
     }
   }

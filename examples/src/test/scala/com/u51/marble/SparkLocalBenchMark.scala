@@ -48,6 +48,8 @@ class SparkLocalBenchMark {
     .config("spark.default.parallelism", 1)
     .config("spark.sql.catalogImplementation", "direct")
     .config("spark.sql.codegen.wholeStage", false)
+//    .config("spark.memory.offHeap.enabled", true)
+//    .config("spark.memory.offHeap.size", 1024 * 1024 * 1024)
     .master("local[1]")
     .withExtensions(sessionExtensions =>
       DirectPlanStrategies.strategies.foreach(strategy =>
@@ -170,13 +172,13 @@ class SparkLocalBenchMark {
   }
 
   @Test
-  def testAggregate(): Unit = {
+  def testAggrectgate(): Unit = {
     val sql =
-      "SELECT count(*) ,sum(i_current_price),max(i_current_price)  FROM item1 group by i_item_id "
-    runSqlForSingleTable(1, sql)
-    System.out.println(runSqlForSingleTable(2000, sql))
-    System.out.println(runSqlForSingleTable(4000, sql))
-    System.out.println(runSqlForSingleTable(10000, sql))
+      "SELECT count(*) ,sum(i_current_price),max(i_current_price),percentile_approx(i_current_price,0.8)  FROM item1 group by i_item_id "
+//    runSqlForSingleTable(1, sql)
+//    System.out.println(runSqlForSingleTable(2000, sql))
+//    System.out.println(runSqlForSingleTable(4000, sql))
+//    System.out.println(runSqlForSingleTable(10000, sql))
     System.out.println(runSqlForSingleTable(15000, sql))
   }
 
