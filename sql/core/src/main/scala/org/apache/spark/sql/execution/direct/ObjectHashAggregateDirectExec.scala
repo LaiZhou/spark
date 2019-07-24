@@ -80,10 +80,6 @@ case class ObjectHashAggregateDirectExec(
     child.output ++ aggregateBufferAttributes ++ aggregateAttributes ++
       aggregateExpressions.flatMap(_.aggregateFunction.inputAggBufferAttributes)
 
-  override lazy val metrics = Map(
-    "numOutputRows" -> DirectSQLMetrics.createMetric(),
-    "aggTime" -> DirectSQLMetrics.createTimingMetric())
-
   override def output: Seq[Attribute] = resultExpressions.map(_.toAttribute)
 
   override def producedAttributes: AttributeSet =
@@ -108,8 +104,8 @@ case class ObjectHashAggregateDirectExec(
   }
 
   override def enumerator(): Enumerator[InternalRow] = {
-    val numOutputRows = longMetric("numOutputRows")
-    val aggTime = longMetric("aggTime")
+    val numOutputRows = longMetric("numOutputRows", DirectSQLMetrics.createMetric())
+    val aggTime = longMetric("aggTime", DirectSQLMetrics.createTimingMetric())
 
     val iter = child.execute()
     val beforeAgg = System.nanoTime()
@@ -135,6 +131,7 @@ case class ObjectHashAggregateDirectExec(
           Integer.MAX_VALUE, // always use ObjectAggregation in direct mode
           numOutputRows)
       if (!hasInput && groupingExpressions.isEmpty) {
+        numOutputRows += 1
         Iterator.single[UnsafeRow](aggregationIterator.outputForEmptyGroupingKeyWithoutInput())
       } else {
         aggregationIterator

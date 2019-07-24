@@ -67,21 +67,24 @@ abstract class DirectPlan
   private val codeGenFallBack = (sqlContext == null) || sqlContext.conf.codegenFallback
 
   /**
-   * @return All metrics containing metrics of this SparkPlan.
+   * @return All metrics containing metrics of this DirectPlan,
+   * which was stored in current ThreadContext
    */
-  def metrics: Map[String, SQLMetric] = Map.empty
+  def metrics(): scala.collection.mutable.Map[String, SQLMetric] = {
+    DirectExecutionContext
+      .get()
+      .planMetricsMap
+      .getOrElseUpdate(this, scala.collection.mutable.Map[String, SQLMetric]())
 
-  /**
-   * Resets all the metrics.
-   */
-  def resetMetrics(): Unit = {
-    metrics.valuesIterator.foreach(_.reset())
   }
 
   /**
    * @return [[SQLMetric]] for the `name`.
    */
-  def longMetric(name: String): SQLMetric = metrics(name)
+  def longMetric(name: String, metricValue: SQLMetric = null): SQLMetric = {
+    val planMetrics = metrics()
+    planMetrics.getOrElseUpdate(name, metricValue)
+  }
 
   def prepare(): Unit = children.foreach(_.prepare())
 
@@ -173,7 +176,7 @@ case class DirectPlanAdapter(sparkPlan: SparkPlan) extends DirectPlan {
     val s = new Stopwatch().start()
     val r = sparkPlan.executeCollect()
     s.stop()
-    println(
+    logWarning(
       "sparkPlan execute spend " + s.elapsed(TimeUnit.MICROSECONDS) * 0.001 + ", " + sparkPlan)
 
     new IterableEnumerator[InternalRow](r.toIterator)

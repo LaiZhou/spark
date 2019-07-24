@@ -23,6 +23,7 @@ import org.apache.spark.sql.catalyst.expressions.BindReferences.bindReferences
 import org.apache.spark.sql.catalyst.plans._
 import org.apache.spark.sql.execution.RowIterator
 import org.apache.spark.sql.execution.direct.DirectPlan
+import org.apache.spark.sql.execution.metric.SQLMetric
 
 trait DirectHashJoin {
   self: DirectPlan =>
@@ -183,7 +184,8 @@ trait DirectHashJoin {
 
   protected def join(
       streamedIter: Iterator[InternalRow],
-      hashed: HashedRelation): Iterator[InternalRow] = {
+      hashed: HashedRelation,
+      numOutputRows: SQLMetric): Iterator[InternalRow] = {
 
     val joinedIter = joinType match {
       case _: InnerLike =>
@@ -203,6 +205,7 @@ trait DirectHashJoin {
 
     val resultProj = createResultProjection
     joinedIter.map { r =>
+      numOutputRows += 1
       resultProj(r)
     }
   }

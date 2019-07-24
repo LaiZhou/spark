@@ -17,6 +17,8 @@
 
 package org.apache.spark.sql.execution.direct
 
+import java.util.concurrent.TimeUnit.NANOSECONDS
+
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.plans.JoinType
@@ -35,13 +37,26 @@ case class HashJoinDirectExec(
   override def enumerator(): Enumerator[InternalRow] = {
     val buildEnumerator = left.enumerator()
     val streamedEnumerator = streamedPlan.enumerator()
+
+    val buildDataSize = longMetric("buildDataSize", DirectSQLMetrics.createSizeMetric())
+    val buildTime = longMetric("buildTime", DirectSQLMetrics.createTimingMetric())
+    val start = System.nanoTime()
     val relation =
       HashedRelation(new EnumeratorIterator[InternalRow](buildEnumerator), buildKeys)
+    buildTime += NANOSECONDS.toMillis(System.nanoTime() - start)
+    buildDataSize += relation.estimatedSize
+
     DirectExecutionContext.get().addExecutionCompletionListener { _ =>
       relation.close()
     }
-    val iterator = join(streamedPlan.execute(), relation)
+    val numOutputRows = longMetric("numOutputRows", DirectSQLMetrics.createMetric())
+
+    val iterator = join(streamedPlan.execute(), relation, numOutputRows)
     new IterableEnumerator[InternalRow](iterator) {
+
+      DirectExecutionContext.get().addExecutionCompletionListener { _ =>
+        relation.close()
+      }
       override def close(): Unit = {
         super.close()
         buildEnumerator.close()

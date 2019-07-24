@@ -90,6 +90,9 @@ case class FilterDirectExec(condition: Expression, child: DirectPlan)
   }
 
   override def enumerator(): Enumerator[InternalRow] = {
+
+    val numOutputRows = longMetric("numOutputRows", DirectSQLMetrics.createMetric())
+
     new Enumerator[InternalRow] {
 
       val predicate: Predicate = {
@@ -102,6 +105,7 @@ case class FilterDirectExec(condition: Expression, child: DirectPlan)
       override def moveNext(): Boolean = {
         while (inputEnumerator.moveNext()) {
           if (predicate.eval(inputEnumerator.current())) {
+            numOutputRows += 1
             return true
           }
         }

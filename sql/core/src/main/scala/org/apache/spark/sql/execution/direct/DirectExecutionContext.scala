@@ -21,6 +21,8 @@ import java.util.EventListener
 
 import scala.collection.mutable.ArrayBuffer
 
+import org.apache.spark.sql.execution.metric.SQLMetric
+
 object DirectExecutionContext {
   private[this] val executionContext: ThreadLocal[DirectExecutionContext] =
     ThreadLocal.withInitial[DirectExecutionContext](() => new DirectExecutionContext())
@@ -30,6 +32,11 @@ object DirectExecutionContext {
   def unset(): Unit = executionContext.remove()
 }
 class DirectExecutionContext {
+
+  val planMetricsMap
+    : scala.collection.mutable.Map[DirectPlan, scala.collection.mutable.Map[String, SQLMetric]] =
+    scala.collection.mutable.Map[DirectPlan, scala.collection.mutable.Map[String, SQLMetric]]()
+
   private val onCompleteCallbacks = new ArrayBuffer[ExecutionCompletionListener]
 
   def addExecutionCompletionListener(listener: ExecutionCompletionListener): Unit = {
