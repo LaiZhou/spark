@@ -18,27 +18,27 @@
 package org.apache.spark.sql.execution.direct
 
 import org.apache.spark.sql.execution._
+import org.apache.spark.sql.execution.aggregate.ObjectHashAggregateExec
 import org.apache.spark.sql.execution.joins.{
   BroadcastNestedLoopJoinExec,
   CartesianProductExec,
   HashJoin,
   SortMergeJoinExec
 }
-
 object DirectPlanConverter {
 
   def convert(plan: SparkPlan): DirectPlan = {
     plan match {
+      // basic
       case ProjectExec(projectList, child) =>
         ProjectDirectExec(projectList, convert(child))
       case FilterExec(condition, child) =>
         FilterDirectExec(condition, convert(child))
       case DynamicLocalTableScanExec(output, name) =>
         LocalTableScanDirectExec(output, name)
-      // TODO add more Physical Plan conversion here
 
-      case p if p.isInstanceOf[HashJoin] =>
-        val hashJoin = p.asInstanceOf[HashJoin]
+      // join
+      case hashJoin: HashJoin =>
         HashJoinDirectExec(
           hashJoin.leftKeys,
           hashJoin.rightKeys,
@@ -47,8 +47,7 @@ object DirectPlanConverter {
           convert(hashJoin.left),
           convert(hashJoin.right))
 
-      case p if p.isInstanceOf[SortMergeJoinExec] =>
-        val sortMergeJoin = p.asInstanceOf[SortMergeJoinExec]
+      case sortMergeJoin: SortMergeJoinExec =>
         HashJoinDirectExec(
           sortMergeJoin.leftKeys,
           sortMergeJoin.rightKeys,
@@ -57,11 +56,24 @@ object DirectPlanConverter {
           convert(sortMergeJoin.left),
           convert(sortMergeJoin.right))
 
-      case p if p.isInstanceOf[BroadcastNestedLoopJoinExec] =>
-        DirectPlanAdapter(p)
-      case p if p.isInstanceOf[CartesianProductExec] =>
-        DirectPlanAdapter(p)
+      case broadcastNestedLoopJoinExec: BroadcastNestedLoopJoinExec =>
+        DirectPlanAdapter(broadcastNestedLoopJoinExec)
+      case cartesianProductExec: CartesianProductExec =>
+        DirectPlanAdapter(cartesianProductExec)
+
+      // aggregate
+      case objectHashAggregateExec: ObjectHashAggregateExec =>
+        ObjectHashAggregateDirectExec(
+          objectHashAggregateExec.groupingExpressions,
+          objectHashAggregateExec.aggregateExpressions,
+          objectHashAggregateExec.aggregateAttributes,
+          objectHashAggregateExec.initialInputBufferOffset,
+          objectHashAggregateExec.resultExpressions,
+          convert(objectHashAggregateExec.child))
+
+      // TODO other
       case other => DirectPlanAdapter(other)
+
     }
   }
 }

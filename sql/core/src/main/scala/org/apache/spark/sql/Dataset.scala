@@ -2771,7 +2771,7 @@ class Dataset[T] private[sql](
   def collectDirectly(): Array[T] = {
     try {
       val enc = resolvedEnc.copy()
-      val iterator = queryExecution.directExecutedPlan.collect()
+      val iterator = queryExecution.directExecutedPlan.execute()
       val data = iterator.map(enc.fromRow).toArray
       iterator match {
         case c: AutoCloseable =>

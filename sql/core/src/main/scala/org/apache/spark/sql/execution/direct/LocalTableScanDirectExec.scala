@@ -44,6 +44,6 @@ case class LocalTableScanDirectExec(output: Seq[Attribute], name: TableIdentifie
         rows.map(r => proj(r).copy()).toArray
       }
     }
-    new IterableEnumerator[InternalRow](unsafeRows)
+    new IterableEnumerator[InternalRow](unsafeRows.toIterator)
   }
 }

@@ -40,8 +40,8 @@ case class HashJoinDirectExec(
     DirectExecutionContext.get().addExecutionCompletionListener { _ =>
       relation.close()
     }
-    val iterator = join(streamedPlan.collect(), relation)
-    new IterableEnumerator[InternalRow](iterator.toIterable) {
+    val iterator = join(streamedPlan.execute(), relation)
+    new IterableEnumerator[InternalRow](iterator) {
       override def close(): Unit = {
         super.close()
         buildEnumerator.close()

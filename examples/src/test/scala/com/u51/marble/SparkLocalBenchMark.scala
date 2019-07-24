@@ -68,6 +68,7 @@ class SparkLocalBenchMark {
   def sqlQuery(sql: String): Double = {
     val s = new Stopwatch().start()
     val resultTable = dfCache.get(sql).collectDirectly()
+    println(resultTable.mkString("\n"))
     System.out.println("sqlQuery result table size:" + resultTable.length)
     s.stop
     s.elapsed(TimeUnit.MICROSECONDS) * 0.001
@@ -180,6 +181,8 @@ class SparkLocalBenchMark {
 //    System.out.println(runSqlForSingleTable(4000, sql))
 //    System.out.println(runSqlForSingleTable(10000, sql))
     System.out.println(runSqlForSingleTable(15000, sql))
+    System.out.println(runSqlForSingleTable(15000, sql))
+
   }
 
   @Test

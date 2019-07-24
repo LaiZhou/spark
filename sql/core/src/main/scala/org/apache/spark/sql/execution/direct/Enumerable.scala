@@ -72,9 +72,8 @@ trait Enumerable[T] {
 
 }
 
-class IterableEnumerator[T](iterable: Iterable[T]) extends Enumerator[T] {
+class IterableEnumerator[T](iterator: Iterator[T]) extends Enumerator[T] {
 
-  var iterator: Iterator[T] = iterable.iterator
   val DUMMY: Object = new Object()
   var currentElement: T = DUMMY.asInstanceOf[T]
 
@@ -97,7 +96,6 @@ class IterableEnumerator[T](iterable: Iterable[T]) extends Enumerator[T] {
   }
 
   override def reset(): Unit = {
-    iterator = iterable.iterator
     currentElement = DUMMY.asInstanceOf[T]
   }
 
@@ -114,7 +112,6 @@ class IterableEnumerator[T](iterable: Iterable[T]) extends Enumerator[T] {
         }
       case _ =>
     }
-    iterator = null
   }
 
 }

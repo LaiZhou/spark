@@ -39,6 +39,7 @@ import org.apache.spark.sql.catalyst.expressions.{
 import org.apache.spark.sql.catalyst.expressions.codegen.{Predicate => GenPredicate, _}
 import org.apache.spark.sql.catalyst.plans.QueryPlan
 import org.apache.spark.sql.execution.SparkPlan
+import org.apache.spark.sql.execution.metric.SQLMetric
 import org.apache.spark.sql.types.DataType
 
 abstract class DirectPlan
@@ -46,14 +47,45 @@ abstract class DirectPlan
     with Enumerable[InternalRow]
     with Logging {
 
-  final val sqlContext = SparkSession.getActiveSession.map(_.sqlContext).orNull
+  /**
+   * A handle to the SQL Context that was used to create this plan. Since many operators need
+   * access to the sqlContext for RDD operations or configuration this field is automatically
+   * populated by the query planning infrastructure.
+   */
+  @transient final val sqlContext = SparkSession.getActiveSession.map(_.sqlContext).orNull
+
+  protected def sparkContext = sqlContext.sparkContext
+
+  // sqlContext will be null when SparkPlan nodes are created without the active sessions.
+  val subexpressionEliminationEnabled: Boolean = if (sqlContext != null) {
+    sqlContext.conf.subexpressionEliminationEnabled
+  } else {
+    false
+  }
 
   // whether we should fallback when hitting compilation errors caused by codegen
   private val codeGenFallBack = (sqlContext == null) || sqlContext.conf.codegenFallback
 
+  /**
+   * @return All metrics containing metrics of this SparkPlan.
+   */
+  def metrics: Map[String, SQLMetric] = Map.empty
+
+  /**
+   * Resets all the metrics.
+   */
+  def resetMetrics(): Unit = {
+    metrics.valuesIterator.foreach(_.reset())
+  }
+
+  /**
+   * @return [[SQLMetric]] for the `name`.
+   */
+  def longMetric(name: String): SQLMetric = metrics(name)
+
   def prepare(): Unit = children.foreach(_.prepare())
 
-  def collect(): Iterator[InternalRow] = {
+  def execute(): Iterator[InternalRow] = {
     new EnumeratorIterator[InternalRow](enumerator())
   }
 
@@ -144,7 +176,7 @@ case class DirectPlanAdapter(sparkPlan: SparkPlan) extends DirectPlan {
     println(
       "sparkPlan execute spend " + s.elapsed(TimeUnit.MICROSECONDS) * 0.001 + ", " + sparkPlan)
 
-    new IterableEnumerator[InternalRow](r)
+    new IterableEnumerator[InternalRow](r.toIterator)
   }
 
 }
