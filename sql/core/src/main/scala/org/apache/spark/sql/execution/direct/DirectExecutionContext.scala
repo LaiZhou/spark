@@ -21,6 +21,7 @@ import java.util.EventListener
 
 import scala.collection.mutable.ArrayBuffer
 
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.execution.metric.SQLMetric
 
 object DirectExecutionContext {
@@ -36,6 +37,8 @@ class DirectExecutionContext {
   val planMetricsMap
     : scala.collection.mutable.Map[DirectPlan, scala.collection.mutable.Map[String, SQLMetric]] =
     scala.collection.mutable.Map[DirectPlan, scala.collection.mutable.Map[String, SQLMetric]]()
+
+  val activeSparkSession = SparkSession.active
 
   private val onCompleteCallbacks = new ArrayBuffer[ExecutionCompletionListener]
 

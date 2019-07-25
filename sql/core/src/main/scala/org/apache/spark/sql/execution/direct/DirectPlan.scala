@@ -42,10 +42,7 @@ import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.execution.metric.SQLMetric
 import org.apache.spark.sql.types.DataType
 
-abstract class DirectPlan
-    extends QueryPlan[DirectPlan]
-    with Enumerable[InternalRow]
-    with Logging {
+abstract class DirectPlan extends QueryPlan[DirectPlan] with Logging {
 
   /**
    * A handle to the SQL Context that was used to create this plan. Since many operators need
@@ -88,8 +85,10 @@ abstract class DirectPlan
 
   def prepare(): Unit = children.foreach(_.prepare())
 
+  def doExecute(): Iterator[InternalRow]
+
   def execute(): Iterator[InternalRow] = {
-    new EnumeratorIterator[InternalRow](enumerator())
+    doExecute()
   }
 
   protected def newMutableProjection(
@@ -172,14 +171,14 @@ case class DirectPlanAdapter(sparkPlan: SparkPlan) extends DirectPlan {
 
   override def children: Seq[DirectPlan] = sparkPlan.children.map(DirectPlanConverter.convert)
 
-  override def enumerator(): Enumerator[InternalRow] = {
+  override def doExecute(): Iterator[InternalRow] = {
     val s = new Stopwatch().start()
     val r = sparkPlan.executeCollect()
     s.stop()
     logWarning(
       "sparkPlan execute spend " + s.elapsed(TimeUnit.MICROSECONDS) * 0.001 + ", " + sparkPlan)
 
-    new IterableEnumerator[InternalRow](r.toIterator)
+    r.toIterator
   }
 
 }

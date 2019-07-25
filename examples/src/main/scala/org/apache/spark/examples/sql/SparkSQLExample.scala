@@ -82,7 +82,7 @@ object SparkSQLExample {
   private def runBasicDataFrameExample(spark: SparkSession): Unit = {
     // $example on:create_df$
     val df = spark
-      .createDataFrame(List(("a", 1, 0), ("bbb", 2, 1), ("c", 3, 0), ("ddd", 4, 1), ("e", 5, 0)))
+      .createDataFrame(List(("a", 2, 0), ("bbb", 2, 1), ("c", 3, 0), ("ddd", 4, 1), ("e", 5, 1)))
       .toDF("name", "age", "genda")
     val df2 = spark
       .createDataFrame(List(("a", 1, 0), ("b", 2, 1), ("c", 3, 0)))
@@ -150,14 +150,12 @@ object SparkSQLExample {
     //    // Register the DataFrame as a SQL temporary view
     df.createOrReplaceTempView("people")
     df2.createOrReplaceTempView("people2")
-
-//    val sqlDF = spark.sql("SELECT substring(name,0,1) as c1 ,age as c2 FROM people where age>1")
-//    val sqlDF = spark.sql(
-//      "SELECT substring(t1.name,0,1) as c1 ,substring(t2.name,0,2) as c2 FROM people t1,people2 t2 where t1.name=t2.name and t2.age>0")
-
     //    val sqlDF = spark.sql("SELECT substring(name,0,1) as c1 ,age as c2,(select max(age)  from people ) as maxAge FROM people where age>1")
 
-    val sqlDF = spark.sql("SELECT max(age),count(age) FROM people group by genda")
+//    val sqlDF = spark.sql("SELECT substring(name,0,1) as c1 ,age as c2 FROM people where age>1")
+//    val sqlDF = spark.sql("SELECT substring(t1.name,0,1) as c1 ,substring(t2.name,0,2) as c2 FROM people t1,people2 t2 where t1.name=t2.name and t2.age>0")
+
+    val sqlDF = spark.sql("SELECT genda,max(age),count(*) FROM people group by genda")
 
     //    val rt = sqlDF.collect()
     val s1 = StopWatch.createStarted()

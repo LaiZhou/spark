@@ -21,6 +21,7 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{
   Attribute,
   Expression,
+  GenericInternalRow,
   IsNotNull,
   NamedExpression,
   NullIntolerant,
@@ -34,27 +35,25 @@ case class ProjectDirectExec(projectList: Seq[NamedExpression], child: DirectPla
 
   override def output: Seq[Attribute] = projectList.map(_.toAttribute)
 
-  override def enumerator(): Enumerator[InternalRow] = {
-    new Enumerator[InternalRow] {
-
+  override def doExecute(): Iterator[InternalRow] = {
+    new Iterator[InternalRow] {
       val project: UnsafeProjection = {
         val project = UnsafeProjection.create(projectList, child.output)
         project.initialize(0)
         project
       }
-      val inputEnumerator: Enumerator[InternalRow] = child.enumerator()
+      val childIter: Iterator[InternalRow] = child.doExecute()
 
-      override def moveNext(): Boolean = {
-        inputEnumerator.moveNext()
+      override def hasNext: Boolean = {
+        childIter.hasNext
       }
 
-      override def current(): InternalRow = {
-        project.apply(inputEnumerator.current())
+      override def next: InternalRow = {
+        val numOutputRows = longMetric("numOutputRows", DirectSQLMetrics.createMetric())
+        numOutputRows += 1
+        project(childIter.next())
       }
 
-      override def reset(): Unit = { inputEnumerator.reset() }
-
-      override def close(): Unit = { inputEnumerator.close() }
     }
   }
 
@@ -89,37 +88,40 @@ case class FilterDirectExec(condition: Expression, child: DirectPlan)
     }
   }
 
-  override def enumerator(): Enumerator[InternalRow] = {
-
+  override def doExecute(): Iterator[InternalRow] = {
     val numOutputRows = longMetric("numOutputRows", DirectSQLMetrics.createMetric())
-
-    new Enumerator[InternalRow] {
+    new Iterator[InternalRow] {
 
       val predicate: Predicate = {
         val predicate: Predicate = newPredicate(condition, child.output)
         predicate.initialize(0)
         predicate
       }
-      val inputEnumerator: Enumerator[InternalRow] = child.enumerator()
+      val childIter: Iterator[InternalRow] = child.doExecute()
+      val DUMMY_ROW = new GenericInternalRow(null)
+      var nextRow: InternalRow = DUMMY_ROW
 
-      override def moveNext(): Boolean = {
-        while (inputEnumerator.moveNext()) {
-          if (predicate.eval(inputEnumerator.current())) {
-            numOutputRows += 1
+      override def hasNext: Boolean = {
+        while (childIter.hasNext) {
+          nextRow = childIter.next()
+          if (predicate.eval(nextRow)) {
             return true
           }
         }
+        nextRow = DUMMY_ROW
         false
       }
 
-      override def current(): InternalRow = {
-        inputEnumerator.current()
+      override def next: InternalRow = {
+        if (nextRow != DUMMY_ROW || hasNext) {
+          numOutputRows += 1
+          nextRow
+        } else {
+          throw new NoSuchElementException
+        }
       }
-
-      override def reset(): Unit = { inputEnumerator.reset() }
-
-      override def close(): Unit = { inputEnumerator.close() }
     }
+
   }
 
 }

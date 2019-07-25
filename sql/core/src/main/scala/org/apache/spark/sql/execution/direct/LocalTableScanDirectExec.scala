@@ -17,7 +17,6 @@
 
 package org.apache.spark.sql.execution.direct
 
-import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.{InternalRow, TableIdentifier}
 import org.apache.spark.sql.catalyst.expressions.{Attribute, UnsafeProjection}
 import org.apache.spark.sql.catalyst.plans.logical.{LocalRelation, Project, SubqueryAlias}
@@ -25,9 +24,10 @@ import org.apache.spark.sql.catalyst.plans.logical.{LocalRelation, Project, Subq
 case class LocalTableScanDirectExec(output: Seq[Attribute], name: TableIdentifier)
     extends LeafDirectExecNode {
 
-  override def enumerator(): Enumerator[InternalRow] = {
+  override def doExecute(): Iterator[InternalRow] = {
     val rows: Seq[InternalRow] = {
-      val foundRelation = SparkSession.active.sessionState.catalog.lookupRelation(name)
+      val foundRelation =
+        DirectExecutionContext.get().activeSparkSession.sessionState.catalog.lookupRelation(name)
       foundRelation match {
         case SubqueryAlias(_, Project(_, LocalRelation(_, data, _))) =>
           data
@@ -44,6 +44,6 @@ case class LocalTableScanDirectExec(output: Seq[Attribute], name: TableIdentifie
         rows.map(r => proj(r).copy()).toArray
       }
     }
-    new IterableEnumerator[InternalRow](unsafeRows.toIterator)
+    unsafeRows.toIterator
   }
 }

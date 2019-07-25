@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.spark.sql.execution.direct
 
 import java.util.concurrent.TimeUnit.NANOSECONDS
@@ -26,44 +27,14 @@ import org.apache.spark.sql.catalyst.expressions.{
   NamedExpression,
   UnsafeRow
 }
-import org.apache.spark.sql.catalyst.expressions.aggregate.{
-  AggregateExpression,
-  TypedImperativeAggregate
-}
+import org.apache.spark.sql.catalyst.expressions.aggregate.AggregateExpression
 import org.apache.spark.sql.catalyst.util.truncatedString
-import org.apache.spark.sql.execution.aggregate.{HashAggregateExec, ObjectAggregationIterator}
+import org.apache.spark.sql.execution.aggregate.{HashAggregateExec, TungstenAggregationIterator}
 
 /**
- * A hash-based aggregate operator that supports [[TypedImperativeAggregate]] functions that may
- * use arbitrary JVM objects as aggregation states.
- *
- * Similar to [[HashAggregateExec]], this operator also falls back to sort-based aggregation when
- * the size of the internal hash map exceeds the threshold. The differences are:
- *
- *  - It uses safe rows as aggregation buffer since it must support JVM objects as aggregation
- *    states.
- *
- *  - It tracks entry count of the hash map instead of byte size to decide when we should fall back.
- *    This is because it's hard to estimate the accurate size of arbitrary JVM objects in a
- *    lightweight way.
- *
- *  - Whenever fallen back to sort-based aggregation, this operator feeds all of the rest input rows
- *    into external sorters instead of building more hash map(s) as what [[HashAggregateExec]] does.
- *    This is because having too many JVM object aggregation states floating there can be dangerous
- *    for GC.
- *
- *  - CodeGen is not supported yet.
- *
- * This operator may be turned off by setting the following SQL configuration to `false`:
- * {{{
- *   spark.sql.execution.useObjectHashAggregateExec
- * }}}
- * The fallback threshold can be configured by tuning:
- * {{{
- *   spark.sql.objectHashAggregate.sortBased.fallbackThreshold
- * }}}
+ * Hash-based aggregate operator that can also fallback to sorting when data exceeds memory size.
  */
-case class ObjectHashAggregateDirectExec(
+case class HashAggregateDirectExec(
     groupingExpressions: Seq[NamedExpression],
     aggregateExpressions: Seq[AggregateExpression],
     aggregateAttributes: Seq[Attribute],
@@ -76,6 +47,8 @@ case class ObjectHashAggregateDirectExec(
     aggregateExpressions.flatMap(_.aggregateFunction.aggBufferAttributes)
   }
 
+  require(HashAggregateExec.supportsAggregate(aggregateBufferAttributes))
+
   override lazy val allAttributes: AttributeSeq =
     child.output ++ aggregateBufferAttributes ++ aggregateAttributes ++
       aggregateExpressions.flatMap(_.aggregateFunction.inputAggBufferAttributes)
@@ -87,22 +60,35 @@ case class ObjectHashAggregateDirectExec(
       AttributeSet(resultExpressions.diff(groupingExpressions).map(_.toAttribute)) ++
       AttributeSet(aggregateBufferAttributes)
 
+  // This is for testing. We force TungstenAggregationIterator to fall back to the unsafe row hash
+  // map and/or the sort-based aggregation once it has processed a given number of input rows.
+  private val testFallbackStartsAt: Option[(Int, Int)] = {
+    sqlContext.getConf("spark.sql.TungstenAggregate.testFallbackStartsAt", null) match {
+      case null | "" => None
+      case fallbackStartsAt =>
+        val splits = fallbackStartsAt.split(",").map(_.trim)
+        Some((splits.head.toInt, splits.last.toInt))
+    }
+  }
+
   override def doExecute(): Iterator[InternalRow] = {
     val numOutputRows = longMetric("numOutputRows", DirectSQLMetrics.createMetric())
+    val peakMemory = longMetric("peakMemory", DirectSQLMetrics.createSizeMetric())
+    val spillSize = longMetric("spillSize", DirectSQLMetrics.createSizeMetric())
+    val avgHashProbe = longMetric("avgHashProbe", DirectSQLMetrics.createAverageMetric())
     val aggTime = longMetric("aggTime", DirectSQLMetrics.createTimingMetric())
 
     val iter = child.doExecute()
     val beforeAgg = System.nanoTime()
     val hasInput = iter.hasNext
     val res = if (!hasInput && groupingExpressions.nonEmpty) {
-      // This is a grouped aggregate and the input kvIterator is empty,
-      // so return an empty kvIterator.
+      // This is a grouped aggregate and the input iterator is empty,
+      // so return an empty iterator.
       Iterator.empty
     } else {
       val aggregationIterator =
-        new ObjectAggregationIterator(
+        new TungstenAggregationIterator(
           0,
-          child.output,
           groupingExpressions,
           aggregateExpressions,
           aggregateAttributes,
@@ -112,8 +98,11 @@ case class ObjectHashAggregateDirectExec(
             newMutableProjection(expressions, inputSchema, subexpressionEliminationEnabled),
           child.output,
           iter,
-          Integer.MAX_VALUE, // always use ObjectAggregation in direct mode
-          numOutputRows)
+          testFallbackStartsAt,
+          numOutputRows,
+          peakMemory,
+          spillSize,
+          avgHashProbe)
       if (!hasInput && groupingExpressions.isEmpty) {
         numOutputRows += 1
         Iterator.single[UnsafeRow](aggregationIterator.outputForEmptyGroupingKeyWithoutInput())
@@ -131,13 +120,20 @@ case class ObjectHashAggregateDirectExec(
 
   private def toString(verbose: Boolean, maxFields: Int): String = {
     val allAggregateExpressions = aggregateExpressions
-    val keyString = truncatedString(groupingExpressions, "[", ", ", "]", maxFields)
-    val functionString = truncatedString(allAggregateExpressions, "[", ", ", "]", maxFields)
-    val outputString = truncatedString(output, "[", ", ", "]", maxFields)
-    if (verbose) {
-      s"ObjectHashAggregate(keys=$keyString, functions=$functionString, output=$outputString)"
-    } else {
-      s"ObjectHashAggregate(keys=$keyString, functions=$functionString)"
+
+    testFallbackStartsAt match {
+      case None =>
+        val keyString = truncatedString(groupingExpressions, "[", ", ", "]", maxFields)
+        val functionString = truncatedString(allAggregateExpressions, "[", ", ", "]", maxFields)
+        val outputString = truncatedString(output, "[", ", ", "]", maxFields)
+        if (verbose) {
+          s"HashAggregate(keys=$keyString, functions=$functionString, output=$outputString)"
+        } else {
+          s"HashAggregate(keys=$keyString, functions=$functionString)"
+        }
+      case Some(fallbackStartsAt) =>
+        s"HashAggregateWithControlledFallback $groupingExpressions " +
+          s"$allAggregateExpressions $resultExpressions fallbackStartsAt=$fallbackStartsAt"
     }
   }
 

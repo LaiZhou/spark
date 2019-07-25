@@ -34,34 +34,21 @@ case class HashJoinDirectExec(
     extends BinaryDirectExecNode
     with DirectHashJoin {
 
-  override def enumerator(): Enumerator[InternalRow] = {
-    val buildEnumerator = left.enumerator()
-    val streamedEnumerator = streamedPlan.enumerator()
+  override def doExecute(): Iterator[InternalRow] = {
+    val buildIter = left.doExecute()
+    val streamedIter = streamedPlan.doExecute()
 
     val buildDataSize = longMetric("buildDataSize", DirectSQLMetrics.createSizeMetric())
     val buildTime = longMetric("buildTime", DirectSQLMetrics.createTimingMetric())
     val start = System.nanoTime()
     val relation =
-      HashedRelation(new EnumeratorIterator[InternalRow](buildEnumerator), buildKeys)
-    buildTime += NANOSECONDS.toMillis(System.nanoTime() - start)
-    buildDataSize += relation.estimatedSize
-
+      HashedRelation(buildIter, buildKeys)
     DirectExecutionContext.get().addExecutionCompletionListener { _ =>
       relation.close()
     }
+    buildTime += NANOSECONDS.toMillis(System.nanoTime() - start)
+    buildDataSize += relation.estimatedSize
     val numOutputRows = longMetric("numOutputRows", DirectSQLMetrics.createMetric())
-
-    val iterator = join(streamedPlan.execute(), relation, numOutputRows)
-    new IterableEnumerator[InternalRow](iterator) {
-
-      DirectExecutionContext.get().addExecutionCompletionListener { _ =>
-        relation.close()
-      }
-      override def close(): Unit = {
-        super.close()
-        buildEnumerator.close()
-        streamedEnumerator.close()
-      }
-    }
+    join(streamedIter, relation, numOutputRows)
   }
 }
