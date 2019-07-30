@@ -18,7 +18,11 @@
 package org.apache.spark.sql.execution.direct
 
 import org.apache.spark.sql.execution._
-import org.apache.spark.sql.execution.aggregate.{HashAggregateExec, ObjectHashAggregateExec}
+import org.apache.spark.sql.execution.aggregate.{
+  HashAggregateExec,
+  ObjectHashAggregateExec,
+  SortAggregateExec
+}
 import org.apache.spark.sql.execution.joins.{
   BroadcastNestedLoopJoinExec,
   CartesianProductExec,
@@ -79,6 +83,15 @@ object DirectPlanConverter {
           hashAggregateExec.initialInputBufferOffset,
           hashAggregateExec.resultExpressions,
           convert(hashAggregateExec.child))
+
+      case sortAggregateExec: SortAggregateExec =>
+        SortAggregateDirectExec(
+          sortAggregateExec.groupingExpressions,
+          sortAggregateExec.aggregateExpressions,
+          sortAggregateExec.aggregateAttributes,
+          sortAggregateExec.initialInputBufferOffset,
+          sortAggregateExec.resultExpressions,
+          convert(sortAggregateExec.child))
 
       // TODO other
       case other => DirectPlanAdapter(other)
