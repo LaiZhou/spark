@@ -189,7 +189,7 @@ case class SubqueryDirectExec(name: String, child: DirectPlan)
     }(SubqueryDirectExec.executionContext)
   }
 
-  override def prepare(): Unit = {
+  override def doPrepare(): Unit = {
     relationFuture
   }
 
