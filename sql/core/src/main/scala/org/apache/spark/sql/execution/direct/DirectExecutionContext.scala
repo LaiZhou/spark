@@ -42,6 +42,11 @@ class DirectExecutionContext {
 
   private val onCompleteCallbacks = new ArrayBuffer[ExecutionCompletionListener]
 
+  val runningSubqueriesMap =
+    scala.collection.mutable.Map[DirectPlan, ArrayBuffer[ExecSubqueryExpression]]()
+
+  val preparedMap = scala.collection.mutable.Map[DirectPlan, Boolean]()
+
   def addExecutionCompletionListener(listener: ExecutionCompletionListener): Unit = {
     onCompleteCallbacks += listener
   }

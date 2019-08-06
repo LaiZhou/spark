@@ -80,8 +80,10 @@ abstract class DirectPlan extends QueryPlan[DirectPlan] with Logging {
    * List of (uncorrelated scalar subquery, future holding the subquery result) for this plan node.
    * This list is populated by [[prepareSubqueries]], which is called in [[prepare]].
    */
-  @transient
-  private val runningSubqueries = new ArrayBuffer[ExecSubqueryExpression]
+  private def runningSubqueries: ArrayBuffer[ExecSubqueryExpression] = {
+    DirectExecutionContext.get().runningSubqueriesMap
+      .getOrElseUpdate(this, new ArrayBuffer[ExecSubqueryExpression])
+  }
 
   /**
    * Finds scalar subquery expressions in this plan node and starts evaluating them.
@@ -111,7 +113,11 @@ abstract class DirectPlan extends QueryPlan[DirectPlan] with Logging {
   /**
    * Whether the "prepare" method is called.
    */
-  private var prepared = false
+  private def prepared: Boolean = DirectExecutionContext.get().preparedMap.getOrElse(this, false)
+
+  private def setPrepared(flag: Boolean = true): Unit = {
+    DirectExecutionContext.get().preparedMap.put(this, flag)
+  }
 
   /**
    * Prepares this SparkPlan for execution. It's idempotent.
@@ -123,7 +129,7 @@ abstract class DirectPlan extends QueryPlan[DirectPlan] with Logging {
       if (!prepared) {
         prepareSubqueries()
         prepare()
-        prepared = true
+        setPrepared()
       }
     }
     waitForSubqueries()
