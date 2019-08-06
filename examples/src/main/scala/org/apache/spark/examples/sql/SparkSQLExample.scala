@@ -27,7 +27,7 @@ import org.apache.spark.sql.execution.direct.DirectPlanStrategies
 
 // $example off:programmatic_schema$
 // $example on:init_session$
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{SparkSession,DirectSparkSession}
 // $example off:init_session$
 // $example on:programmatic_schema$
 // $example on:data_types$
@@ -45,23 +45,7 @@ object SparkSQLExample {
   def main(args: Array[String]) {
     // $example on:init_session$
     val SPARK_WORK_DIR = "/tmp/spark"
-    val builder = SparkSession
-      .builder()
-      .appName("Spark SQL basic example")
-      .config("spark.some.config.option", "some-value")
-      .config("spark.ui.enabled", false)
-      .config("spark.sql.warehouse.dir", SPARK_WORK_DIR)
-      .config("hive.exec.scratchdir", SPARK_WORK_DIR + "/hive")
-      .config("spark.sql.shuffle.partitions", 1)
-      .config("spark.default.parallelism", 1)
-      .config("spark.sql.catalogImplementation", "direct")
-      .config("spark.sql.codegen.wholeStage", false)
-      .master("local[1]")
-      .withExtensions(sessionExtensions =>
-        DirectPlanStrategies.strategies.foreach(strategy =>
-          sessionExtensions.injectPlannerStrategy(_ => strategy)))
-
-    val spark = builder.getOrCreate()
+    val spark = DirectSparkSession.builder().getOrCreate()
 
     // code gen dir prepare
     val code_gen_path = "target/generated-sources"
