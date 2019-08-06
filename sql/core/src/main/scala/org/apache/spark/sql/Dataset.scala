@@ -26,8 +26,8 @@ import scala.language.implicitConversions
 import scala.util.control.NonFatal
 
 import org.apache.commons.lang3.StringUtils
-import org.apache.spark.{SparkConf, TaskContext, TaskContextImpl}
 
+import org.apache.spark.{SparkConf, TaskContext, TaskContextImpl}
 import org.apache.spark.annotation.{DeveloperApi, Evolving, Experimental, Stable, Unstable}
 import org.apache.spark.api.java.JavaRDD
 import org.apache.spark.api.java.function._
@@ -2787,7 +2787,6 @@ class Dataset[T] private[sql](
       // prepare a TaskContext for execution
       TaskContext.setTaskContext(new TaskContextImpl(0, 0, 0, 0, 0,
         taskMemoryManager, new Properties, null))
-      directExecutedPlan.doPrepare()
       val iter = directExecutedPlan.execute()
       val data = iter.map(enc.fromRow).toArray
       data

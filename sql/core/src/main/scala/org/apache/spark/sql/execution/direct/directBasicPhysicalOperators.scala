@@ -17,31 +17,19 @@
 
 package org.apache.spark.sql.execution.direct
 
-import java.util.concurrent.TimeUnit.NANOSECONDS
 import java.util.Properties
+import java.util.concurrent.TimeUnit.NANOSECONDS
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.Duration
 
 import org.apache.spark.{SparkConf, TaskContext, TaskContextImpl}
-
 import org.apache.spark.internal.config.MEMORY_OFFHEAP_ENABLED
 import org.apache.spark.memory.{TaskMemoryManager, UnifiedMemoryManager}
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{
-  Attribute,
-  Expression,
-  GenericInternalRow,
-  IsNotNull,
-  NamedExpression,
-  NullIntolerant,
-  PredicateHelper,
-  UnsafeProjection,
-  UnsafeRow
-}
+import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression, GenericInternalRow, IsNotNull, NamedExpression, NullIntolerant, PredicateHelper, UnsafeProjection, UnsafeRow}
 import org.apache.spark.sql.catalyst.expressions.codegen.Predicate
 import org.apache.spark.sql.execution.SQLExecution
-import org.apache.spark.sql.execution.metric.SQLMetrics
 import org.apache.spark.util.ThreadUtils
 
 case class ProjectDirectExec(projectList: Seq[NamedExpression], child: DirectPlan)
@@ -56,7 +44,7 @@ case class ProjectDirectExec(projectList: Seq[NamedExpression], child: DirectPla
         project.initialize(0)
         project
       }
-      val childIter: Iterator[InternalRow] = child.doExecute()
+      val childIter: Iterator[InternalRow] = child.execute()
 
       override def hasNext: Boolean = {
         childIter.hasNext
@@ -111,7 +99,7 @@ case class FilterDirectExec(condition: Expression, child: DirectPlan)
         predicate.initialize(0)
         predicate
       }
-      val childIter: Iterator[InternalRow] = child.doExecute()
+      val childIter: Iterator[InternalRow] = child.execute()
       val DUMMY_ROW = new GenericInternalRow(0)
       var nextRow: InternalRow = DUMMY_ROW
 
@@ -185,14 +173,12 @@ case class SubqueryDirectExec(name: String, child: DirectPlan)
           // prepare a TaskContext for execution
           TaskContext.setTaskContext(
             new TaskContextImpl(0, 0, 0, 0, 0, taskMemoryManager, new Properties, null))
-          val rows: Array[InternalRow] = child.doExecute().toArray
+          val rows: Array[InternalRow] = child.execute().toArray
           val beforeBuild = System.nanoTime()
           longMetric("collectTime", DirectSQLMetrics.createMetric()) += NANOSECONDS.toMillis(
             beforeBuild - beforeCollect)
           val dataSize = rows.map(_.asInstanceOf[UnsafeRow].getSizeInBytes.toLong).sum
           longMetric("dataSize", DirectSQLMetrics.createSizeMetric()) += dataSize
-
-          SQLMetrics.postDriverMetricUpdates(sparkContext, executionId, metrics.values.toSeq)
           rows
         } finally {
           DirectExecutionContext.get().markCompleted()

@@ -17,6 +17,7 @@
 
 package org.apache.spark.sql.execution.direct
 
+import org.apache.spark.sql.catalyst.expressions
 import org.apache.spark.sql.execution._
 import org.apache.spark.sql.execution.aggregate.{
   HashAggregateExec,
@@ -32,7 +33,19 @@ import org.apache.spark.sql.execution.joins.{
 object DirectPlanConverter {
 
   def convert(plan: SparkPlan): DirectPlan = {
-    plan match {
+
+    val plan0 = plan.transformAllExpressions {
+      case subquery: expressions.ScalarSubquery =>
+        val directExecutedPlan =
+          DirectPlanConverter.convert(new QueryExecution(
+            DirectExecutionContext.get().activeSparkSession,
+            subquery.plan).sparkPlan)
+        ScalarDirectSubquery(
+          SubqueryDirectExec(s"scalar-subquery#${subquery.exprId.id}", directExecutedPlan),
+          subquery.exprId)
+    }
+
+    plan0 match {
       // basic
       case ProjectExec(projectList, child) =>
         ProjectDirectExec(projectList, convert(child))
@@ -94,8 +107,9 @@ object DirectPlanConverter {
           convert(sortAggregateExec.child))
 
       // TODO other
-      case other => DirectPlanAdapter(other)
-
+      case other =>
+        // DirectPlanAdapter(other)
+        throw new UnsupportedOperationException("can't convert this SparkPlan " + other)
     }
   }
 }

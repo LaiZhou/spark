@@ -35,8 +35,8 @@ case class HashJoinDirectExec(
     with DirectHashJoin {
 
   override def doExecute(): Iterator[InternalRow] = {
-    val buildIter = left.doExecute()
-    val streamedIter = streamedPlan.doExecute()
+    val buildIter = left.execute()
+    val streamedIter = streamedPlan.execute()
 
     val buildDataSize = longMetric("buildDataSize", DirectSQLMetrics.createSizeMetric())
     val buildTime = longMetric("buildTime", DirectSQLMetrics.createTimingMetric())

@@ -53,7 +53,7 @@ case class SortAggregateDirectExec(
 
   override def doExecute(): Iterator[InternalRow] = {
     val numOutputRows = longMetric("numOutputRows", DirectSQLMetrics.createMetric())
-    val iter = child.doExecute()
+    val iter = child.execute()
     // Because the constructor of an aggregation iterator will read at least the first row,
     // we need to get the value of iter.hasNext first.
     val hasInput = iter.hasNext

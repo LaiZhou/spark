@@ -71,7 +71,7 @@ object SparkSQLExample {
     // For implicit conversions like converting RDDs to DataFrames
     // $example off:init_session$
 
-    runBasicDataFrameExample(spark)
+    //runBasicDataFrameExample(spark)
     //    runDatasetCreationExample(spark)
     //    runInferSchemaExample(spark)
     //    runProgrammaticSchemaExample(spark)

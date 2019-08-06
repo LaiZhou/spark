@@ -91,7 +91,7 @@ case class ObjectHashAggregateDirectExec(
     val numOutputRows = longMetric("numOutputRows", DirectSQLMetrics.createMetric())
     val aggTime = longMetric("aggTime", DirectSQLMetrics.createTimingMetric())
 
-    val iter = child.doExecute()
+    val iter = child.execute()
     val beforeAgg = System.nanoTime()
     val hasInput = iter.hasNext
     val res = if (!hasInput && groupingExpressions.nonEmpty) {

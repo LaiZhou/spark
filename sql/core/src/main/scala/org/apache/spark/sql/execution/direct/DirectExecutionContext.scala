@@ -38,14 +38,16 @@ class DirectExecutionContext {
     : scala.collection.mutable.Map[DirectPlan, scala.collection.mutable.Map[String, SQLMetric]] =
     scala.collection.mutable.Map[DirectPlan, scala.collection.mutable.Map[String, SQLMetric]]()
 
-  val activeSparkSession = SparkSession.active
+  val activeSparkSession: SparkSession = SparkSession.active
 
   private val onCompleteCallbacks = new ArrayBuffer[ExecutionCompletionListener]
 
-  val runningSubqueriesMap =
+  val runningSubQueriesMap
+    : scala.collection.mutable.Map[DirectPlan, ArrayBuffer[ExecSubqueryExpression]] =
     scala.collection.mutable.Map[DirectPlan, ArrayBuffer[ExecSubqueryExpression]]()
 
-  val preparedMap = scala.collection.mutable.Map[DirectPlan, Boolean]()
+  val preparedMap: scala.collection.mutable.Map[DirectPlan, Boolean] =
+    scala.collection.mutable.Map[DirectPlan, Boolean]()
 
   def addExecutionCompletionListener(listener: ExecutionCompletionListener): Unit = {
     onCompleteCallbacks += listener

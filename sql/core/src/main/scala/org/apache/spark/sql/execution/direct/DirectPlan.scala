@@ -28,7 +28,16 @@ import org.codehaus.janino.InternalCompilerException
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{Ascending, Attribute, AttributeSet, BoundReference, Expression, InterpretedPredicate, MutableProjection, SortOrder}
+import org.apache.spark.sql.catalyst.expressions.{
+  Ascending,
+  Attribute,
+  AttributeSet,
+  BoundReference,
+  Expression,
+  InterpretedPredicate,
+  MutableProjection,
+  SortOrder
+}
 import org.apache.spark.sql.catalyst.expressions.codegen.{Predicate => GenPredicate, _}
 import org.apache.spark.sql.catalyst.plans.QueryPlan
 import org.apache.spark.sql.execution.SparkPlan
@@ -81,7 +90,9 @@ abstract class DirectPlan extends QueryPlan[DirectPlan] with Logging {
    * This list is populated by [[prepareSubqueries]], which is called in [[prepare]].
    */
   private def runningSubqueries: ArrayBuffer[ExecSubqueryExpression] = {
-    DirectExecutionContext.get().runningSubqueriesMap
+    DirectExecutionContext
+      .get()
+      .runningSubQueriesMap
       .getOrElseUpdate(this, new ArrayBuffer[ExecSubqueryExpression])
   }
 
@@ -89,14 +100,13 @@ abstract class DirectPlan extends QueryPlan[DirectPlan] with Logging {
    * Finds scalar subquery expressions in this plan node and starts evaluating them.
    */
   protected def prepareSubqueries(): Unit = {
-    expressions.foreach ( m => {
+    expressions.foreach(m => {
       m.collect {
         case e: ExecSubqueryExpression =>
-          e.plan.doPrepare()
+          e.plan.prepare()
           runningSubqueries += e
       }
-    }
-    )
+    })
   }
 
   /**
@@ -115,31 +125,32 @@ abstract class DirectPlan extends QueryPlan[DirectPlan] with Logging {
    */
   private def prepared: Boolean = DirectExecutionContext.get().preparedMap.getOrElse(this, false)
 
-  private def setPrepared(flag: Boolean = true): Unit = {
-    DirectExecutionContext.get().preparedMap.put(this, flag)
+  private def markPrepared(): Unit = {
+    DirectExecutionContext.get().preparedMap.put(this, true)
   }
 
+  protected def doPrepare(): Unit = {}
+
   /**
-   * Prepares this SparkPlan for execution. It's idempotent.
+   * Prepares this DirectPlan for execution. It's idempotent.
    */
-  final def doPrepare(): Unit = {
+  final def prepare(): Unit = {
     // doPrepare() may depend on it's children, we should call prepare() on all the children first.
-    children.foreach(_.doPrepare())
+    children.foreach(_.prepare())
     synchronized {
       if (!prepared) {
         prepareSubqueries()
-        prepare()
-        setPrepared()
+        doPrepare()
+        markPrepared()
       }
     }
-    waitForSubqueries()
   }
 
-  def prepare(): Unit = {}
+  protected def doExecute(): Iterator[InternalRow]
 
-  def doExecute(): Iterator[InternalRow]
-
-  def execute(): Iterator[InternalRow] = {
+  final def execute(): Iterator[InternalRow] = {
+    prepare()
+    waitForSubqueries()
     doExecute()
   }
 

@@ -17,18 +17,9 @@
 
 package org.apache.spark.sql.execution.direct
 
-import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.catalyst.{expressions, InternalRow}
-import org.apache.spark.sql.catalyst.expressions.{
-  AttributeSeq,
-  Expression,
-  ExprId,
-  Literal,
-  PlanExpression
-}
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.expressions.{AttributeSeq, Expression, ExprId, Literal, PlanExpression}
 import org.apache.spark.sql.catalyst.expressions.codegen.{CodegenContext, ExprCode}
-import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.execution.{QueryExecution, SparkPlan}
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.DataType
 
@@ -69,17 +60,17 @@ object ExecSubqueryExpression {
  *
  * This is the physical copy of ScalarSubquery to be used inside SparkPlan.
  */
-case class ScalarSubquery(plan: BaseSubqueryDirectExec, exprId: ExprId)
+case class ScalarDirectSubquery(plan: BaseSubqueryDirectExec, exprId: ExprId)
     extends ExecSubqueryExpression {
 
   override def dataType: DataType = plan.schema.fields.head.dataType
   override def children: Seq[Expression] = Nil
   override def nullable: Boolean = true
   override def toString: String = plan.simpleString(SQLConf.get.maxToStringFields)
-  override def withNewPlan(query: BaseSubqueryDirectExec): ScalarSubquery = copy(plan = query)
+  override def withNewPlan(query: BaseSubqueryDirectExec): ScalarDirectSubquery = copy(plan = query)
 
   override def semanticEquals(other: Expression): Boolean = other match {
-    case s: ScalarSubquery => plan.sameResult(s.plan)
+    case s: ScalarDirectSubquery => plan.sameResult(s.plan)
     case _ => false
   }
 
@@ -112,23 +103,5 @@ case class ScalarSubquery(plan: BaseSubqueryDirectExec, exprId: ExprId)
   override def doGenCode(ctx: CodegenContext, ev: ExprCode): ExprCode = {
     require(updated, s"$this has not finished")
     Literal.create(result, dataType).doGenCode(ctx, ev)
-  }
-}
-
-/**
- * Plans scalar subqueries from that are present in the given [[SparkPlan]].
- */
-case class DirectPlanSubqueries(sparkSession: SparkSession) extends Rule[SparkPlan] {
-  def apply(plan: SparkPlan): SparkPlan = {
-    plan.transformAllExpressions {
-      case subquery: expressions.ScalarSubquery =>
-        val executedPlan =
-          new QueryExecution(sparkSession, subquery.plan).directPrepareExecutedPlan
-        ScalarSubquery(
-          SubqueryDirectExec(
-            s"scalar-subquery#${subquery.exprId.id}",
-            DirectPlanConverter.convert(executedPlan)),
-          subquery.exprId)
-    }
   }
 }
