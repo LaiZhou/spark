@@ -23,17 +23,14 @@ import scala.reflect.runtime.{universe => ru}
 import scala.util.control.NonFatal
 
 import org.apache.spark.{SparkConf, SparkContext, TaskContext, TaskContextImpl}
+
 import org.apache.spark.internal.Logging
 import org.apache.spark.internal.config.MEMORY_OFFHEAP_ENABLED
 import org.apache.spark.memory.{TaskMemoryManager, UnifiedMemoryManager}
 import org.apache.spark.scheduler.{SparkListener, SparkListenerApplicationEnd}
 import org.apache.spark.sql.SparkSession.{setActiveSession, setDefaultSession}
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
-import org.apache.spark.sql.execution.direct.{
-  DirectDataTable,
-  DirectExecutionContext,
-  DirectPlanStrategies
-}
+import org.apache.spark.sql.execution.direct.{DirectDataTable, DirectExecutionContext, DirectPlanConverter, DirectPlanStrategies}
 import org.apache.spark.sql.internal.{BaseSessionStateBuilder, SessionState}
 import org.apache.spark.util.Utils
 
@@ -85,7 +82,7 @@ class DirectSparkSession(sparkContext: SparkContext) extends SparkSession(sparkC
       val enc = resolvedEnc.copy()
       // hold current active SparkSession
       DirectExecutionContext.get()
-      val directExecutedPlan = df.queryExecution.directExecutedPlan
+      val directExecutedPlan = DirectPlanConverter.convert(df.queryExecution.sparkPlan)
       val taskMemoryManager = new TaskMemoryManager(
         new UnifiedMemoryManager(
           new SparkConf().set(MEMORY_OFFHEAP_ENABLED.key, "false"),

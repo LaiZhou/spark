@@ -20,14 +20,12 @@ package org.apache.spark.examples.sql
 import java.util.concurrent.TimeUnit
 
 import org.apache.commons.lang3.time.StopWatch
-import org.codehaus.commons.compiler.ICookable
 
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.execution.direct.DirectPlanStrategies
 
 // $example off:programmatic_schema$
 // $example on:init_session$
-import org.apache.spark.sql.{SparkSession,DirectSparkSession}
+import org.apache.spark.sql.{DirectSparkSession, SparkSession}
 // $example off:init_session$
 // $example on:programmatic_schema$
 // $example on:data_types$

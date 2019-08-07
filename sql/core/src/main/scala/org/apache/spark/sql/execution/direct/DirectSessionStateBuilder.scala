@@ -19,9 +19,9 @@ package org.apache.spark.sql.execution.direct
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.analysis.{
-  AliasViewChild,
   Analyzer,
   CleanupAliases,
+  CTESubstitution,
   EliminateUnions,
   ResolveCreateNamedStruct,
   ResolveHigherOrderFunctions,
@@ -47,7 +47,6 @@ class DirectSessionStateBuilder(session: SparkSession, parentState: Option[Sessi
   override protected def newBuilder: NewBuilder = new DirectSessionStateBuilder(_, _)
 
   override protected def analyzer: Analyzer = new Analyzer(catalog, conf) {
-
     override lazy val batches: Seq[Batch] = Seq(
       Batch(
         "Hints",
@@ -67,6 +66,8 @@ class DirectSessionStateBuilder(session: SparkSession, parentState: Option[Sessi
         "Resolution",
         fixedPoint,
         ResolveTableValuedFunctions ::
+          ResolveAlterTable ::
+          ResolveInsertInto ::
           ResolveTables ::
           ResolveLazyRelations :: // lazy
           ResolveRelations ::
@@ -102,7 +103,6 @@ class DirectSessionStateBuilder(session: SparkSession, parentState: Option[Sessi
           TypeCoercion.typeCoercionRules(conf) ++
           extendedResolutionRules: _*),
       Batch("Post-Hoc Resolution", Once, postHocResolutionRules: _*),
-      Batch("View", Once, AliasViewChild(conf)),
       Batch("Nondeterministic", Once, PullOutNondeterministic),
       Batch("UDF", Once, HandleNullInputsForUDF),
       Batch("UpdateNullability", Once, UpdateAttributeNullability),
