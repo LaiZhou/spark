@@ -29,7 +29,7 @@ import org.apache.spark.sql.execution.ExternalAppendOnlyUnsafeRowArray
  * Before use a frame must be prepared by passing it all the rows in the current partition. After
  * preparation the update method can be called to fill the output rows.
  */
-abstract class WindowFunctionFrame {
+abstract class WindowDirectFunctionFrame {
 
   /**
    * Prepare the frame for calculating the results for a partition.
@@ -58,7 +58,7 @@ abstract class WindowFunctionFrame {
   def currentUpperBound(): Int
 }
 
-object WindowFunctionFrame {
+object WindowDirectFunctionFrame {
   def getNextOrNull(iterator: Iterator[UnsafeRow]): UnsafeRow = {
     if (iterator.hasNext) iterator.next() else null
   }
@@ -83,7 +83,7 @@ final class OffsetWindowFunctionFrame(
     inputSchema: Seq[Attribute],
     newMutableProjection: (Seq[Expression], Seq[Attribute]) => MutableProjection,
     offset: Int)
-    extends WindowFunctionFrame {
+    extends WindowDirectFunctionFrame {
 
   /** Rows of the partition currently being processed. */
   private[this] var input: ExternalAppendOnlyUnsafeRowArray = null
@@ -144,7 +144,7 @@ final class OffsetWindowFunctionFrame(
 
   override def write(index: Int, current: InternalRow): Unit = {
     if (inputIndex >= 0 && inputIndex < input.length) {
-      val r = WindowFunctionFrame.getNextOrNull(inputIterator)
+      val r = WindowDirectFunctionFrame.getNextOrNull(inputIterator)
       projection(r)
     } else {
       // Use default values since the offset row does not exist.
@@ -174,7 +174,7 @@ final class SlidingWindowFunctionFrame(
     processor: AggregateDirectProcessor,
     lbound: DirectBoundOrdering,
     ubound: DirectBoundOrdering)
-    extends WindowFunctionFrame {
+    extends WindowDirectFunctionFrame {
 
   /** Rows of the partition currently being processed. */
   private[this] var input: ExternalAppendOnlyUnsafeRowArray = null
@@ -206,7 +206,7 @@ final class SlidingWindowFunctionFrame(
   override def prepare(rows: ExternalAppendOnlyUnsafeRowArray): Unit = {
     input = rows
     inputIterator = input.generateIterator()
-    nextRow = WindowFunctionFrame.getNextOrNull(inputIterator)
+    nextRow = WindowDirectFunctionFrame.getNextOrNull(inputIterator)
     lowerBound = 0
     upperBound = 0
     buffer.clear()
@@ -233,7 +233,7 @@ final class SlidingWindowFunctionFrame(
         buffer.add(nextRow.copy())
         bufferUpdated = true
       }
-      nextRow = WindowFunctionFrame.getNextOrNull(inputIterator)
+      nextRow = WindowDirectFunctionFrame.getNextOrNull(inputIterator)
       upperBound += 1
     }
 
@@ -265,7 +265,7 @@ final class SlidingWindowFunctionFrame(
  * @param processor to calculate the row values with.
  */
 final class UnboundedWindowFunctionFrame(target: InternalRow, processor: AggregateDirectProcessor)
-    extends WindowFunctionFrame {
+    extends WindowDirectFunctionFrame {
 
   val lowerBound: Int = 0
   var upperBound: Int = 0
@@ -315,7 +315,7 @@ final class UnboundedPrecedingWindowFunctionFrame(
     target: InternalRow,
     processor: AggregateDirectProcessor,
     ubound: DirectBoundOrdering)
-    extends WindowFunctionFrame {
+    extends WindowDirectFunctionFrame {
 
   /** Rows of the partition currently being processed. */
   private[this] var input: ExternalAppendOnlyUnsafeRowArray = null
@@ -358,7 +358,7 @@ final class UnboundedPrecedingWindowFunctionFrame(
       if (processor != null) {
         processor.update(nextRow)
       }
-      nextRow = WindowFunctionFrame.getNextOrNull(inputIterator)
+      nextRow = WindowDirectFunctionFrame.getNextOrNull(inputIterator)
       inputIndex += 1
       bufferUpdated = true
     }
@@ -394,7 +394,7 @@ final class UnboundedFollowingWindowFunctionFrame(
     target: InternalRow,
     processor: AggregateDirectProcessor,
     lbound: DirectBoundOrdering)
-    extends WindowFunctionFrame {
+    extends WindowDirectFunctionFrame {
 
   /** Rows of the partition currently being processed. */
   private[this] var input: ExternalAppendOnlyUnsafeRowArray = null
@@ -419,11 +419,11 @@ final class UnboundedFollowingWindowFunctionFrame(
     // the output row lower bound.
     val iterator = input.generateIterator(startIndex = inputIndex)
 
-    var nextRow = WindowFunctionFrame.getNextOrNull(iterator)
+    var nextRow = WindowDirectFunctionFrame.getNextOrNull(iterator)
     while (nextRow != null && lbound.compare(nextRow, inputIndex, current, index) < 0) {
       inputIndex += 1
       bufferUpdated = true
-      nextRow = WindowFunctionFrame.getNextOrNull(iterator)
+      nextRow = WindowDirectFunctionFrame.getNextOrNull(iterator)
     }
 
     // Only recalculate and update when the buffer changes.

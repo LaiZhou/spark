@@ -28,7 +28,107 @@ object DirectPlanConverter {
 
   def convert(plan: SparkPlan): DirectPlan = {
     // do prepare
-    val plan1 = plan.transformUp {
+    val plan1 = sureDistributionAndOrdering(plan)
+    convertToDirectPlan(plan1)
+
+  }
+
+  def convertToDirectPlan(plan: SparkPlan): DirectPlan = {
+    val plan0 = plan.transformAllExpressions {
+      case subquery: expressions.ScalarSubquery =>
+        val directExecutedPlan =
+          DirectPlanConverter.convertToDirectPlan(new QueryExecution(
+            DirectExecutionContext.get().activeSparkSession,
+            subquery.plan).sparkPlan)
+        ScalarDirectSubquery(
+          SubqueryDirectExec(s"scalar-subquery#${subquery.exprId.id}", directExecutedPlan),
+          subquery.exprId)
+    }
+
+    plan0 match {
+      // basic
+      case ProjectExec(projectList, child) =>
+        ProjectDirectExec(projectList, convertToDirectPlan(child))
+      case FilterExec(condition, child) =>
+        FilterDirectExec(condition, convertToDirectPlan(child))
+      case DynamicLocalTableScanExec(output, name) =>
+        LocalTableScanDirectExec(output, name)
+
+      // join
+      case hashJoin: HashJoin =>
+        HashJoinDirectExec(
+          hashJoin.leftKeys,
+          hashJoin.rightKeys,
+          hashJoin.joinType,
+          hashJoin.condition,
+          convertToDirectPlan(hashJoin.left),
+          convertToDirectPlan(hashJoin.right))
+
+      case sortMergeJoin: SortMergeJoinExec =>
+        HashJoinDirectExec(
+          sortMergeJoin.leftKeys,
+          sortMergeJoin.rightKeys,
+          sortMergeJoin.joinType,
+          sortMergeJoin.condition,
+          convertToDirectPlan(sortMergeJoin.left),
+          convertToDirectPlan(sortMergeJoin.right))
+
+      case broadcastNestedLoopJoinExec: BroadcastNestedLoopJoinExec =>
+        DirectPlanAdapter(broadcastNestedLoopJoinExec)
+      case cartesianProductExec: CartesianProductExec =>
+        DirectPlanAdapter(cartesianProductExec)
+
+      case windowExec: WindowExec =>
+        WindowDirectExec(
+          windowExec.windowExpression,
+          windowExec.partitionSpec,
+          windowExec.orderSpec,
+          convertToDirectPlan(windowExec.child))
+
+      // aggregate
+      case objectHashAggregateExec: ObjectHashAggregateExec =>
+        ObjectHashAggregateDirectExec(
+          objectHashAggregateExec.groupingExpressions,
+          objectHashAggregateExec.aggregateExpressions,
+          objectHashAggregateExec.aggregateAttributes,
+          objectHashAggregateExec.initialInputBufferOffset,
+          objectHashAggregateExec.resultExpressions,
+          convertToDirectPlan(objectHashAggregateExec.child))
+
+      case hashAggregateExec: HashAggregateExec =>
+        HashAggregateDirectExec(
+          hashAggregateExec.groupingExpressions,
+          hashAggregateExec.aggregateExpressions,
+          hashAggregateExec.aggregateAttributes,
+          hashAggregateExec.initialInputBufferOffset,
+          hashAggregateExec.resultExpressions,
+          convertToDirectPlan(hashAggregateExec.child))
+
+      case sortAggregateExec: SortAggregateExec =>
+        SortAggregateDirectExec(
+          sortAggregateExec.groupingExpressions,
+          sortAggregateExec.aggregateExpressions,
+          sortAggregateExec.aggregateAttributes,
+          sortAggregateExec.initialInputBufferOffset,
+          sortAggregateExec.resultExpressions,
+          convertToDirectPlan(sortAggregateExec.child))
+      case sortExec: SortExec =>
+        SortDirectExec(
+          sortExec.sortOrder,
+          sortExec.global,
+          convertToDirectPlan(sortExec.child),
+          sortExec.testSpillFrequency)
+
+      // TODO other
+      case other =>
+        // DirectPlanAdapter(other)
+        throw new UnsupportedOperationException("can't convert this SparkPlan " + other)
+    }
+  }
+
+  def sureDistributionAndOrdering(operator: SparkPlan): SparkPlan = {
+    // only ordering
+    operator.transformUp {
       case operator: SparkPlan =>
         var children: Seq[SparkPlan] = operator.children
         val requiredChildOrderings: Seq[Seq[SortOrder]] = operator.requiredChildOrdering
@@ -41,101 +141,6 @@ object DirectPlanConverter {
             }
         }
         operator.withNewChildren(children)
-    }
-    convertLoop(plan1)
-
-  }
-
-  def convertLoop(plan: SparkPlan): DirectPlan = {
-    val plan0 = plan.transformAllExpressions {
-      case subquery: expressions.ScalarSubquery =>
-        val directExecutedPlan =
-          DirectPlanConverter.convertLoop(new QueryExecution(
-            DirectExecutionContext.get().activeSparkSession,
-            subquery.plan).sparkPlan)
-        ScalarDirectSubquery(
-          SubqueryDirectExec(s"scalar-subquery#${subquery.exprId.id}", directExecutedPlan),
-          subquery.exprId)
-    }
-
-    plan0 match {
-      // basic
-      case ProjectExec(projectList, child) =>
-        ProjectDirectExec(projectList, convertLoop(child))
-      case FilterExec(condition, child) =>
-        FilterDirectExec(condition, convertLoop(child))
-      case DynamicLocalTableScanExec(output, name) =>
-        LocalTableScanDirectExec(output, name)
-
-      // join
-      case hashJoin: HashJoin =>
-        HashJoinDirectExec(
-          hashJoin.leftKeys,
-          hashJoin.rightKeys,
-          hashJoin.joinType,
-          hashJoin.condition,
-          convertLoop(hashJoin.left),
-          convertLoop(hashJoin.right))
-
-      case sortMergeJoin: SortMergeJoinExec =>
-        HashJoinDirectExec(
-          sortMergeJoin.leftKeys,
-          sortMergeJoin.rightKeys,
-          sortMergeJoin.joinType,
-          sortMergeJoin.condition,
-          convertLoop(sortMergeJoin.left),
-          convertLoop(sortMergeJoin.right))
-
-      case broadcastNestedLoopJoinExec: BroadcastNestedLoopJoinExec =>
-        DirectPlanAdapter(broadcastNestedLoopJoinExec)
-      case cartesianProductExec: CartesianProductExec =>
-        DirectPlanAdapter(cartesianProductExec)
-
-      case windowExec: WindowExec =>
-        WindowDirectExec(
-          windowExec.windowExpression,
-          windowExec.partitionSpec,
-          windowExec.orderSpec,
-          convertLoop(windowExec.child))
-
-      // aggregate
-      case objectHashAggregateExec: ObjectHashAggregateExec =>
-        ObjectHashAggregateDirectExec(
-          objectHashAggregateExec.groupingExpressions,
-          objectHashAggregateExec.aggregateExpressions,
-          objectHashAggregateExec.aggregateAttributes,
-          objectHashAggregateExec.initialInputBufferOffset,
-          objectHashAggregateExec.resultExpressions,
-          convertLoop(objectHashAggregateExec.child))
-
-      case hashAggregateExec: HashAggregateExec =>
-        HashAggregateDirectExec(
-          hashAggregateExec.groupingExpressions,
-          hashAggregateExec.aggregateExpressions,
-          hashAggregateExec.aggregateAttributes,
-          hashAggregateExec.initialInputBufferOffset,
-          hashAggregateExec.resultExpressions,
-          convertLoop(hashAggregateExec.child))
-
-      case sortAggregateExec: SortAggregateExec =>
-        SortAggregateDirectExec(
-          sortAggregateExec.groupingExpressions,
-          sortAggregateExec.aggregateExpressions,
-          sortAggregateExec.aggregateAttributes,
-          sortAggregateExec.initialInputBufferOffset,
-          sortAggregateExec.resultExpressions,
-          convertLoop(sortAggregateExec.child))
-      case sortExec: SortExec =>
-        SortDirectExec(
-          sortExec.sortOrder,
-          sortExec.global,
-          convertLoop(sortExec.child),
-          sortExec.testSpillFrequency)
-
-      // TODO other
-      case other =>
-        // DirectPlanAdapter(other)
-        throw new UnsupportedOperationException("can't convert this SparkPlan " + other)
     }
   }
 }
