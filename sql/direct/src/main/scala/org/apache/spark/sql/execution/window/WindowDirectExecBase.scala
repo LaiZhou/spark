@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.spark.sql.execution.direct.window
+package org.apache.spark.sql.execution.window
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -67,17 +67,17 @@ abstract class WindowDirectExecBase(
   private def createBoundOrdering(
       frame: FrameType,
       bound: Expression,
-      timeZone: String): DirectBoundOrdering = {
+      timeZone: String): BoundOrdering = {
     (frame, bound) match {
       case (RowFrame, CurrentRow) =>
-        DirectRowBoundOrdering(0)
+        RowBoundOrdering(0)
 
       case (RowFrame, IntegerLiteral(offset)) =>
-        DirectRowBoundOrdering(offset)
+        RowBoundOrdering(offset)
 
       case (RangeFrame, CurrentRow) =>
         val ordering = newOrdering(orderSpec, child.output)
-        DirectRangeBoundOrdering(ordering, IdentityProjection, IdentityProjection)
+        RangeBoundOrdering(ordering, IdentityProjection, IdentityProjection)
 
       case (RangeFrame, offset: Expression) if orderSpec.size == 1 =>
         // Use only the first order expression when the offset is non-null.
@@ -107,7 +107,7 @@ abstract class WindowDirectExecBase(
         // Code Generation (if it is enabled).
         val boundSortExprs = sortExpr.copy(BoundReference(0, expr.dataType, expr.nullable)) :: Nil
         val ordering = newOrdering(boundSortExprs, Nil)
-        DirectRangeBoundOrdering(ordering, current, bound)
+        RangeBoundOrdering(ordering, current, bound)
 
       case (RangeFrame, _) =>
         sys.error(
@@ -170,7 +170,7 @@ abstract class WindowDirectExecBase(
           if (functions.exists(_.isInstanceOf[PythonUDF])) {
             null
           } else {
-            AggregateDirectProcessor(
+            AggregateProcessor(
               functions,
               ordinal,
               child.output,

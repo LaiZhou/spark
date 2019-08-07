@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.spark.sql.execution.direct.window
+package org.apache.spark.sql.execution.window
 
 import java.util
 
@@ -171,9 +171,9 @@ final class OffsetWindowFunctionFrame(
  */
 final class SlidingWindowFunctionFrame(
     target: InternalRow,
-    processor: AggregateDirectProcessor,
-    lbound: DirectBoundOrdering,
-    ubound: DirectBoundOrdering)
+    processor: AggregateProcessor,
+    lbound: BoundOrdering,
+    ubound: BoundOrdering)
     extends WindowDirectFunctionFrame {
 
   /** Rows of the partition currently being processed. */
@@ -264,7 +264,7 @@ final class SlidingWindowFunctionFrame(
  * @param target to write results to.
  * @param processor to calculate the row values with.
  */
-final class UnboundedWindowFunctionFrame(target: InternalRow, processor: AggregateDirectProcessor)
+final class UnboundedWindowFunctionFrame(target: InternalRow, processor: AggregateProcessor)
     extends WindowDirectFunctionFrame {
 
   val lowerBound: Int = 0
@@ -313,8 +313,8 @@ final class UnboundedWindowFunctionFrame(target: InternalRow, processor: Aggrega
  */
 final class UnboundedPrecedingWindowFunctionFrame(
     target: InternalRow,
-    processor: AggregateDirectProcessor,
-    ubound: DirectBoundOrdering)
+    processor: AggregateProcessor,
+    ubound: BoundOrdering)
     extends WindowDirectFunctionFrame {
 
   /** Rows of the partition currently being processed. */
@@ -392,8 +392,8 @@ final class UnboundedPrecedingWindowFunctionFrame(
  */
 final class UnboundedFollowingWindowFunctionFrame(
     target: InternalRow,
-    processor: AggregateDirectProcessor,
-    lbound: DirectBoundOrdering)
+    processor: AggregateProcessor,
+    lbound: BoundOrdering)
     extends WindowDirectFunctionFrame {
 
   /** Rows of the partition currently being processed. */
