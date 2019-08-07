@@ -38,15 +38,15 @@ import org.apache.spark.util.Utils
 
 
 /**
- * A class that holds all state shared across sessions in a given [[SQLContext]].
- *
- * @param sparkContext The Spark context associated with this SharedState
- * @param initialConfigs The configs from the very first created SparkSession
- */
+  * A class that holds all state shared across sessions in a given [[SQLContext]].
+  *
+  * @param sparkContext The Spark context associated with this SharedState
+  * @param initialConfigs The configs from the very first created SparkSession
+  */
 private[sql] class SharedState(
-    val sparkContext: SparkContext,
-    initialConfigs: scala.collection.Map[String, String])
-  extends Logging {
+                                  val sparkContext: SparkContext,
+                                  initialConfigs: scala.collection.Map[String, String])
+    extends Logging {
 
   // Load hive-site.xml into hadoopConf and determine the warehouse path we want to use, based on
   // the config from both hive and Spark SQL. Finally set the warehouse config value to sparkConf.
@@ -66,8 +66,8 @@ private[sql] class SharedState(
       // we will respect the value of hive.metastore.warehouse.dir.
       sparkContext.conf.set(WAREHOUSE_PATH.key, hiveWarehouseDir)
       logInfo(s"${WAREHOUSE_PATH.key} is not set, but hive.metastore.warehouse.dir " +
-        s"is set. Setting ${WAREHOUSE_PATH.key} to the value of " +
-        s"hive.metastore.warehouse.dir ('$hiveWarehouseDir').")
+          s"is set. Setting ${WAREHOUSE_PATH.key} to the value of " +
+          s"hive.metastore.warehouse.dir ('$hiveWarehouseDir').")
       hiveWarehouseDir
     } else {
       // If spark.sql.warehouse.dir is set, we will override hive.metastore.warehouse.dir using
@@ -76,7 +76,7 @@ private[sql] class SharedState(
       // we will set hive.metastore.warehouse.dir to the default value of spark.sql.warehouse.dir.
       val sparkWarehouseDir = sparkContext.conf.get(WAREHOUSE_PATH)
       logInfo(s"Setting hive.metastore.warehouse.dir ('$hiveWarehouseDir') to the value of " +
-        s"${WAREHOUSE_PATH.key} ('$sparkWarehouseDir').")
+          s"${WAREHOUSE_PATH.key} ('$sparkWarehouseDir').")
       sparkContext.hadoopConfiguration.set("hive.metastore.warehouse.dir", sparkWarehouseDir)
       sparkWarehouseDir
     }
@@ -95,7 +95,7 @@ private[sql] class SharedState(
     initialConfigs.foreach {
       case (k, _)  if k == "hive.metastore.warehouse.dir" || k == WAREHOUSE_PATH.key =>
         logWarning(s"Not allowing to set ${WAREHOUSE_PATH.key} or hive.metastore.warehouse.dir " +
-          s"in SparkSession's options, it should be set statically for cross-session usages")
+            s"in SparkSession's options, it should be set statically for cross-session usages")
       case (k, v) =>
         logDebug(s"Applying initial SparkSession options to SparkConf/HadoopConf: $k -> $v")
         confClone.set(k, v)
@@ -106,14 +106,14 @@ private[sql] class SharedState(
   }
 
   /**
-   * Class for caching query results reused in future executions.
-   */
+    * Class for caching query results reused in future executions.
+    */
   val cacheManager: CacheManager = new CacheManager
 
   /**
-   * A status store to query SQL status/metrics of this Spark application, based on SQL-specific
-   * [[org.apache.spark.scheduler.SparkListenerEvent]]s.
-   */
+    * A status store to query SQL status/metrics of this Spark application, based on SQL-specific
+    * [[org.apache.spark.scheduler.SparkListenerEvent]]s.
+    */
   val statusStore: SQLAppStatusStore = {
     val kvStore = sparkContext.statusStore.store.asInstanceOf[ElementTrackingStore]
     val listener = new SQLAppStatusListener(conf, kvStore, live = true)
@@ -124,8 +124,8 @@ private[sql] class SharedState(
   }
 
   /**
-   * A catalog that interacts with external systems.
-   */
+    * A catalog that interacts with external systems.
+    */
   lazy val externalCatalog: ExternalCatalogWithListener = {
     val externalCatalog = SharedState.reflect[ExternalCatalog, SparkConf, Configuration](
       SharedState.externalCatalogClassName(conf), conf, hadoopConf)
@@ -152,8 +152,8 @@ private[sql] class SharedState(
   }
 
   /**
-   * A manager for global temporary views.
-   */
+    * A manager for global temporary views.
+    */
   lazy val globalTempViewManager: GlobalTempViewManager = {
     // System preserved database should not exists in metastore. However it's hard to guarantee it
     // for every session, because case-sensitivity differs. Here we always lowercase it to make our
@@ -162,15 +162,15 @@ private[sql] class SharedState(
     if (externalCatalog.databaseExists(globalTempDB)) {
       throw new SparkException(
         s"$globalTempDB is a system preserved database, please rename your existing database " +
-          "to resolve the name conflict, or set a different value for " +
-          s"${GLOBAL_TEMP_DATABASE.key}, and launch your Spark application again.")
+            "to resolve the name conflict, or set a different value for " +
+            s"${GLOBAL_TEMP_DATABASE.key}, and launch your Spark application again.")
     }
     new GlobalTempViewManager(globalTempDB)
   }
 
   /**
-   * A classloader used to load all user-added jar.
-   */
+    * A classloader used to load all user-added jar.
+    */
   val jarClassLoader = new NonClosableMutableURLClassLoader(
     org.apache.spark.util.Utils.getContextOrSparkClassLoader)
 
@@ -194,15 +194,15 @@ object SharedState extends Logging {
   }
 
   /**
-   * Helper method to create an instance of [[T]] using a single-arg constructor that
-   * accepts an [[Arg1]] and an [[Arg2]].
-   */
+    * Helper method to create an instance of [[T]] using a single-arg constructor that
+    * accepts an [[Arg1]] and an [[Arg2]].
+    */
   private def reflect[T, Arg1 <: AnyRef, Arg2 <: AnyRef](
-      className: String,
-      ctorArg1: Arg1,
-      ctorArg2: Arg2)(
-      implicit ctorArgTag1: ClassTag[Arg1],
-      ctorArgTag2: ClassTag[Arg2]): T = {
+                                                            className: String,
+                                                            ctorArg1: Arg1,
+                                                            ctorArg2: Arg2)(
+                                                            implicit ctorArgTag1: ClassTag[Arg1],
+                                                            ctorArgTag2: ClassTag[Arg2]): T = {
     try {
       val clazz = Utils.classForName(className)
       val ctor = clazz.getDeclaredConstructor(ctorArgTag1.runtimeClass, ctorArgTag2.runtimeClass)
