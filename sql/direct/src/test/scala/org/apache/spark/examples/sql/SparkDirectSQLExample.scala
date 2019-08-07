@@ -129,7 +129,8 @@ object SparkDirectSQLExample {
 
     //    val rt = sqlDF.collect()
     val s1 = StopWatch.createStarted()
-    val sqlDF = spark.sqlDirectly("SELECT genda,max(age),count(*) FROM people group by genda")
+//    val sqlDF = spark.sqlDirectly("SELECT genda,max(age),count(*) FROM people group by genda")
+    val sqlDF = spark.sqlDirectly("SELECT name,ROW_NUMBER() OVER (PARTITION BY genda ORDER BY name) as row FROM people")
     val rt = sqlDF.data
     s1.stop()
     println("s1:" + s1.getTime(TimeUnit.MILLISECONDS))

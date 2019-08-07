@@ -18,26 +18,39 @@
 package org.apache.spark.sql.execution.direct
 
 import org.apache.spark.sql.catalyst.expressions
+import org.apache.spark.sql.catalyst.expressions.SortOrder
 import org.apache.spark.sql.execution._
-import org.apache.spark.sql.execution.aggregate.{
-  HashAggregateExec,
-  ObjectHashAggregateExec,
-  SortAggregateExec
-}
-import org.apache.spark.sql.execution.joins.{
-  BroadcastNestedLoopJoinExec,
-  CartesianProductExec,
-  HashJoin,
-  SortMergeJoinExec
-}
+import org.apache.spark.sql.execution.aggregate.{HashAggregateExec, ObjectHashAggregateExec, SortAggregateExec}
+import org.apache.spark.sql.execution.direct.window.WindowDirectExec
+import org.apache.spark.sql.execution.joins.{BroadcastNestedLoopJoinExec, CartesianProductExec, HashJoin, SortMergeJoinExec}
+import org.apache.spark.sql.execution.window.WindowExec
 object DirectPlanConverter {
 
   def convert(plan: SparkPlan): DirectPlan = {
+    // do prepare
+    val plan1 = plan.transformUp {
+      case operator: SparkPlan =>
+        var children: Seq[SparkPlan] = operator.children
+        val requiredChildOrderings: Seq[Seq[SortOrder]] = operator.requiredChildOrdering
+        children = children.zip(requiredChildOrderings).map {
+          case (child, requiredOrdering) =>
+            if (SortOrder.orderingSatisfies(child.outputOrdering, requiredOrdering)) {
+              child
+            } else {
+              SortExec(requiredOrdering, global = false, child = child)
+            }
+        }
+        operator.withNewChildren(children)
+    }
+    convertLoop(plan1)
 
+  }
+
+  def convertLoop(plan: SparkPlan): DirectPlan = {
     val plan0 = plan.transformAllExpressions {
       case subquery: expressions.ScalarSubquery =>
         val directExecutedPlan =
-          DirectPlanConverter.convert(new QueryExecution(
+          DirectPlanConverter.convertLoop(new QueryExecution(
             DirectExecutionContext.get().activeSparkSession,
             subquery.plan).sparkPlan)
         ScalarDirectSubquery(
@@ -48,9 +61,9 @@ object DirectPlanConverter {
     plan0 match {
       // basic
       case ProjectExec(projectList, child) =>
-        ProjectDirectExec(projectList, convert(child))
+        ProjectDirectExec(projectList, convertLoop(child))
       case FilterExec(condition, child) =>
-        FilterDirectExec(condition, convert(child))
+        FilterDirectExec(condition, convertLoop(child))
       case DynamicLocalTableScanExec(output, name) =>
         LocalTableScanDirectExec(output, name)
 
@@ -61,8 +74,8 @@ object DirectPlanConverter {
           hashJoin.rightKeys,
           hashJoin.joinType,
           hashJoin.condition,
-          convert(hashJoin.left),
-          convert(hashJoin.right))
+          convertLoop(hashJoin.left),
+          convertLoop(hashJoin.right))
 
       case sortMergeJoin: SortMergeJoinExec =>
         HashJoinDirectExec(
@@ -70,13 +83,20 @@ object DirectPlanConverter {
           sortMergeJoin.rightKeys,
           sortMergeJoin.joinType,
           sortMergeJoin.condition,
-          convert(sortMergeJoin.left),
-          convert(sortMergeJoin.right))
+          convertLoop(sortMergeJoin.left),
+          convertLoop(sortMergeJoin.right))
 
       case broadcastNestedLoopJoinExec: BroadcastNestedLoopJoinExec =>
         DirectPlanAdapter(broadcastNestedLoopJoinExec)
       case cartesianProductExec: CartesianProductExec =>
         DirectPlanAdapter(cartesianProductExec)
+
+      case windowExec: WindowExec =>
+        WindowDirectExec(
+          windowExec.windowExpression,
+          windowExec.partitionSpec,
+          windowExec.orderSpec,
+          convertLoop(windowExec.child))
 
       // aggregate
       case objectHashAggregateExec: ObjectHashAggregateExec =>
@@ -86,7 +106,7 @@ object DirectPlanConverter {
           objectHashAggregateExec.aggregateAttributes,
           objectHashAggregateExec.initialInputBufferOffset,
           objectHashAggregateExec.resultExpressions,
-          convert(objectHashAggregateExec.child))
+          convertLoop(objectHashAggregateExec.child))
 
       case hashAggregateExec: HashAggregateExec =>
         HashAggregateDirectExec(
@@ -95,7 +115,7 @@ object DirectPlanConverter {
           hashAggregateExec.aggregateAttributes,
           hashAggregateExec.initialInputBufferOffset,
           hashAggregateExec.resultExpressions,
-          convert(hashAggregateExec.child))
+          convertLoop(hashAggregateExec.child))
 
       case sortAggregateExec: SortAggregateExec =>
         SortAggregateDirectExec(
@@ -104,7 +124,13 @@ object DirectPlanConverter {
           sortAggregateExec.aggregateAttributes,
           sortAggregateExec.initialInputBufferOffset,
           sortAggregateExec.resultExpressions,
-          convert(sortAggregateExec.child))
+          convertLoop(sortAggregateExec.child))
+      case sortExec: SortExec =>
+        SortDirectExec(
+          sortExec.sortOrder,
+          sortExec.global,
+          convertLoop(sortExec.child),
+          sortExec.testSpillFrequency)
 
       // TODO other
       case other =>
