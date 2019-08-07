@@ -44,27 +44,26 @@ object SparkSQLExample {
 
   def main(args: Array[String]) {
     // $example on:init_session$
-    val SPARK_WORK_DIR = "/tmp/spark"
     val spark = DirectSparkSession.builder().getOrCreate()
 
     // code gen dir prepare
-    val code_gen_path = "target/generated-sources"
-    sys.props(ICookable.SYSTEM_PROPERTY_SOURCE_DEBUGGING_ENABLE) = "true"
-    sys.props(ICookable.SYSTEM_PROPERTY_SOURCE_DEBUGGING_DIR) = code_gen_path
+//    val code_gen_path = "target/generated-sources"
+//    sys.props(ICookable.SYSTEM_PROPERTY_SOURCE_DEBUGGING_ENABLE) = "true"
+//    sys.props(ICookable.SYSTEM_PROPERTY_SOURCE_DEBUGGING_DIR) = code_gen_path
 
     // For implicit conversions like converting RDDs to DataFrames
     // $example off:init_session$
 
-    //runBasicDataFrameExample(spark)
+    runBasicDataFrameExample(spark)
     //    runDatasetCreationExample(spark)
     //    runInferSchemaExample(spark)
     //    runProgrammaticSchemaExample(spark)
-    runSubqueryExample(spark)
+//    runSubqueryExample(spark)
 
     spark.stop()
   }
 
-  private def runBasicDataFrameExample(spark: SparkSession): Unit = {
+  private def runBasicDataFrameExample(spark: DirectSparkSession): Unit = {
     // $example on:create_df$
     val df = spark
       .createDataFrame(List(("a", 2, 0), ("bbb", 2, 1), ("c", 3, 0), ("ddd", 4, 1), ("e", 5, 1)))
@@ -140,21 +139,18 @@ object SparkSQLExample {
 //    val sqlDF = spark.sql("SELECT substring(name,0,1) as c1 ,age as c2 FROM people where age>1")
 //    val sqlDF = spark.sql("SELECT substring(t1.name,0,1) as c1 ,substring(t2.name,0,2) as c2 FROM people t1,people2 t2 where t1.name=t2.name and t2.age>0")
 
-    val sqlDF = spark.sql("SELECT genda,max(age),count(*) FROM people group by genda")
-
     //    val rt = sqlDF.collect()
     val s1 = StopWatch.createStarted()
-    val rt = sqlDF.collectDirectly()
+    val sqlDF = spark.sqlDirectly("SELECT genda,max(age),count(*) FROM people group by genda")
+    val rt = sqlDF.data
     s1.stop()
     println("s1:" + s1.getTime(TimeUnit.MILLISECONDS))
+    println(rt.mkString(","))
 
 //    val s2 = StopWatch.createStarted()
 //    val rt2 = sqlDF.collectDirectly()
 //    s2.stop()
 //    println("s2:" + s2.getTime(TimeUnit.MILLISECONDS))
-
-    spark.sqlContext.clearCache()
-    println(rt.mkString(","))
     // +----+-------+
     // | age|   name|
     // +----+-------+
@@ -306,7 +302,7 @@ object SparkSQLExample {
     // $example off:programmatic_schema$
   }
 
-  private def runSubqueryExample(spark: SparkSession): Unit = {
+  private def runSubqueryExample(spark: DirectSparkSession): Unit = {
     // $example on:subquery$
     val df = spark
       .createDataFrame(List(("a", 2, 0), ("bbb", 2, 1), ("c", 3, 0), ("ddd", 4, 1), ("e", 5, 1)))
@@ -314,16 +310,17 @@ object SparkSQLExample {
 
     df.createOrReplaceTempView("people")
 
-    val sqlDF = spark.sql(
+
+
+    //    val rt = sqlDF.collect()
+    val s1 = StopWatch.createStarted()
+    val sqlDF = spark.sqlDirectly(
       """
         |select sum(age), sum(genda) from people where age < (
         |select max(age) from people
         |)
         |""".stripMargin)
-
-    //    val rt = sqlDF.collect()
-    val s1 = StopWatch.createStarted()
-    val rt = sqlDF.collectDirectly()
+    val rt = sqlDF.data
     s1.stop()
     // scalastyle:off println
     println("s1:" + s1.getTime(TimeUnit.MILLISECONDS))

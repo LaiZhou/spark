@@ -21,12 +21,9 @@ import java.util.concurrent.TimeUnit
 import scala.collection.JavaConverters._
 
 import com.google.common.base.Stopwatch
-import com.google.common.cache.{CacheBuilder, CacheLoader}
 import org.junit.{BeforeClass, Test}
 
-import org.apache.spark.sql.{DataFrame, SparkSession}
-import org.apache.spark.sql.execution.direct.DirectPlanStrategies
-import org.apache.spark.sql.internal.SQLConf
+import org.apache.spark.sql.DirectSparkSession
 import org.apache.spark.storage.StorageLevel
 
 object SparkLocalBenchMark {
@@ -38,36 +35,20 @@ object SparkLocalBenchMark {
 
 class SparkLocalBenchMark {
 
-  val SPARK_WORK_DIR = "/tmp/spark"
-  var spark: SparkSession = new SparkSession.Builder()
-    .appName("spark-local-benchmark")
-    .config("spark.ui.enabled", false)
-    .config("spark.sql.warehouse.dir", SPARK_WORK_DIR)
-    .config("hive.exec.scratchdir", SPARK_WORK_DIR + "/hive")
-    .config("spark.sql.shuffle.partitions", 1)
-    .config("spark.default.parallelism", 1)
-    .config("spark.sql.catalogImplementation", "direct")
-    .config("spark.sql.codegen.wholeStage", false)
-//    .config("spark.memory.offHeap.enabled", true)
-//    .config("spark.memory.offHeap.size", 1024 * 1024 * 1024)
-    .master("local[1]")
-    .withExtensions(sessionExtensions =>
-      DirectPlanStrategies.strategies.foreach(strategy =>
-        sessionExtensions.injectPlannerStrategy(_ => strategy)))
-    .getOrCreate()
+  var spark: DirectSparkSession = DirectSparkSession.builder().getOrCreate()
 
-  val dfCache = CacheBuilder
-    .newBuilder()
-    .maximumSize(SQLConf.get.codegenCacheMaxEntries)
-    .build(new CacheLoader[String, DataFrame]() {
-      override def load(sql: String): DataFrame = {
-        spark.sql(sql)
-      }
-    })
+//  val dfCache = CacheBuilder
+//    .newBuilder()
+//    .maximumSize(SQLConf.get.codegenCacheMaxEntries)
+//    .build(new CacheLoader[String, DataFrame]() {
+//      override def load(sql: String): DataFrame = {
+//        spark.sql(sql)
+//      }
+//    })
 
   def sqlQuery(sql: String): Double = {
     val s = new Stopwatch().start()
-    val resultTable = dfCache.get(sql).collectDirectly()
+    val resultTable = spark.sqlDirectly(sql).data
     println(resultTable.mkString("\n"))
     System.out.println("sqlQuery result table size:" + resultTable.length)
     s.stop

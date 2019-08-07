@@ -17,13 +17,23 @@
 
 package org.apache.spark.sql
 
+import java.util.Properties
+
+import scala.reflect.runtime.{universe => ru}
 import scala.util.control.NonFatal
 
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.{SparkConf, SparkContext, TaskContext, TaskContextImpl}
 import org.apache.spark.internal.Logging
+import org.apache.spark.internal.config.MEMORY_OFFHEAP_ENABLED
+import org.apache.spark.memory.{TaskMemoryManager, UnifiedMemoryManager}
 import org.apache.spark.scheduler.{SparkListener, SparkListenerApplicationEnd}
 import org.apache.spark.sql.SparkSession.{setActiveSession, setDefaultSession}
-import org.apache.spark.sql.execution.direct.DirectPlanStrategies
+import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
+import org.apache.spark.sql.execution.direct.{
+  DirectDataTable,
+  DirectExecutionContext,
+  DirectPlanStrategies
+}
 import org.apache.spark.sql.internal.{BaseSessionStateBuilder, SessionState}
 import org.apache.spark.util.Utils
 
@@ -63,6 +73,39 @@ class DirectSparkSession(sparkContext: SparkContext) extends SparkSession(sparkC
       session.extensions.injectPlannerStrategy(_ => strategy))
     session
   }
+
+  def sqlDirectly(sqlText: String): DirectDataTable = {
+    try {
+      val df = sql(sqlText)
+      val dfMirror = ru.runtimeMirror(getClass.getClassLoader).reflect(df)
+      val resolvedEncLazyMethodSymbol =
+        ru.typeOf[DataFrame].member(ru.TermName("resolvedEnc")).asMethod
+      val resolvedEncLazyMethodMirror = dfMirror.reflectMethod(resolvedEncLazyMethodSymbol)
+      val resolvedEnc = resolvedEncLazyMethodMirror().asInstanceOf[ExpressionEncoder[Row]]
+      val enc = resolvedEnc.copy()
+      // hold current active SparkSession
+      DirectExecutionContext.get()
+      val directExecutedPlan = df.queryExecution.directExecutedPlan
+      val taskMemoryManager = new TaskMemoryManager(
+        new UnifiedMemoryManager(
+          new SparkConf().set(MEMORY_OFFHEAP_ENABLED.key, "false"),
+          Long.MaxValue,
+          Long.MaxValue / 2,
+          1),
+        0)
+      // prepare a TaskContext for execution
+      TaskContext.setTaskContext(
+        new TaskContextImpl(0, 0, 0, 0, 0, taskMemoryManager, new Properties, null))
+      val iter = directExecutedPlan.execute()
+      val data = iter.map(enc.fromRow).toArray
+      DirectDataTable(df.schema.toAttributes, data)
+    } finally {
+      DirectExecutionContext.get().markCompleted()
+      TaskContext.unset()
+      DirectExecutionContext.unset()
+    }
+  }
+
 }
 
 object DirectSparkSession extends Logging {
