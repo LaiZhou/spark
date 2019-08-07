@@ -31,22 +31,21 @@ import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.util.StringUtils.PlanStringConcat
 import org.apache.spark.sql.catalyst.util.truncatedString
 import org.apache.spark.sql.execution.adaptive.InsertAdaptiveSparkPlan
-import org.apache.spark.sql.execution.direct.{DirectPlan, DirectPlanConverter}
 import org.apache.spark.sql.execution.exchange.{EnsureRequirements, ReuseExchange}
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.util.Utils
 
 /**
- * The primary workflow for executing relational queries using Spark.  Designed to allow easy
- * access to the intermediate phases of query execution for developers.
- *
- * While this is not a public class, we should avoid changing the function names for the sake of
- * changing them, because a lot of developers use the feature for debugging.
- */
+  * The primary workflow for executing relational queries using Spark.  Designed to allow easy
+  * access to the intermediate phases of query execution for developers.
+  *
+  * While this is not a public class, we should avoid changing the function names for the sake of
+  * changing them, because a lot of developers use the feature for debugging.
+  */
 class QueryExecution(
-    val sparkSession: SparkSession,
-    val logical: LogicalPlan,
-    val tracker: QueryPlanningTracker = new QueryPlanningTracker) {
+                        val sparkSession: SparkSession,
+                        val logical: LogicalPlan,
+                        val tracker: QueryPlanningTracker = new QueryPlanningTracker) {
 
   // TODO: Move the planner an optimizer into here from SessionState.
   protected def planner = sparkSession.sessionState.planner
@@ -95,26 +94,22 @@ class QueryExecution(
     prepareForExecution(sparkPlan.clone())
   }
 
-  lazy val directExecutedPlan: DirectPlan = tracker.measurePhase(QueryPlanningTracker.PLANNING) {
-    DirectPlanConverter.convert(sparkPlan)
-  }
-
   /**
-   * Internal version of the RDD. Avoids copies and has no schema.
-   * Note for callers: Spark may apply various optimization including reusing object: this means
-   * the row is valid only for the iteration it is retrieved. You should avoid storing row and
-   * accessing after iteration. (Calling `collect()` is one of known bad usage.)
-   * If you want to store these rows into collection, please apply some converter or copy row
-   * which produces new object per iteration.
-   * Given QueryExecution is not a public class, end users are discouraged to use this: please
-   * use `Dataset.rdd` instead where conversion will be applied.
-   */
+    * Internal version of the RDD. Avoids copies and has no schema.
+    * Note for callers: Spark may apply various optimization including reusing object: this means
+    * the row is valid only for the iteration it is retrieved. You should avoid storing row and
+    * accessing after iteration. (Calling `collect()` is one of known bad usage.)
+    * If you want to store these rows into collection, please apply some converter or copy row
+    * which produces new object per iteration.
+    * Given QueryExecution is not a public class, end users are discouraged to use this: please
+    * use `Dataset.rdd` instead where conversion will be applied.
+    */
   lazy val toRdd: RDD[InternalRow] = executedPlan.execute()
 
   /**
-   * Prepares a planned [[SparkPlan]] for execution by inserting shuffle operations and internal
-   * row format conversions as needed.
-   */
+    * Prepares a planned [[SparkPlan]] for execution by inserting shuffle operations and internal
+    * row format conversions as needed.
+    */
   protected def prepareForExecution(plan: SparkPlan): SparkPlan = {
     preparations.foldLeft(plan) { case (sp, rule) => rule.apply(sp) }
   }
@@ -183,8 +178,8 @@ class QueryExecution(
   }
 
   /**
-   * Redact the sensitive information in the given string.
-   */
+    * Redact the sensitive information in the given string.
+    */
   private def withRedaction(message: String): String = {
     Utils.redact(sparkSession.sessionState.conf.stringRedactionPattern, message)
   }
@@ -192,12 +187,12 @@ class QueryExecution(
   /** A special namespace for commands that can be used to debug query execution. */
   // scalastyle:off
   object debug {
-  // scalastyle:on
+    // scalastyle:on
 
     /**
-     * Prints to stdout all the generated code found in this plan (i.e. the output of each
-     * WholeStageCodegen subtree).
-     */
+      * Prints to stdout all the generated code found in this plan (i.e. the output of each
+      * WholeStageCodegen subtree).
+      */
     def codegen(): Unit = {
       // scalastyle:off println
       println(org.apache.spark.sql.execution.debug.codegenString(executedPlan))
@@ -205,19 +200,19 @@ class QueryExecution(
     }
 
     /**
-     * Get WholeStageCodegenExec subtrees and the codegen in a query plan
-     *
-     * @return Sequence of WholeStageCodegen subtrees and corresponding codegen
-     */
+      * Get WholeStageCodegenExec subtrees and the codegen in a query plan
+      *
+      * @return Sequence of WholeStageCodegen subtrees and corresponding codegen
+      */
     def codegenToSeq(): Seq[(String, String)] = {
       org.apache.spark.sql.execution.debug.codegenStringSeq(executedPlan)
     }
 
     /**
-     * Dumps debug information about query execution into the specified file.
-     *
-     * @param maxFields maximum number of fields converted to string representation.
-     */
+      * Dumps debug information about query execution into the specified file.
+      *
+      * @param maxFields maximum number of fields converted to string representation.
+      */
     def toFile(path: String, maxFields: Int = Int.MaxValue): Unit = {
       val filePath = new Path(path)
       val fs = filePath.getFileSystem(sparkSession.sessionState.newHadoopConf())
