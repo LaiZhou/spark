@@ -144,6 +144,14 @@ object DirectPlanConverter {
           sortAggregateExec.resultExpressions,
           convertToDirectPlan(sortAggregateExec.child))
 
+      case generateExec: GenerateExec =>
+        GenerateDirectExec(
+          generateExec.generator,
+          generateExec.requiredChildOutput,
+          generateExec.outer,
+          generateExec.generatorOutput,
+          convertToDirectPlan(generateExec.child))
+
       // TODO other
       case other =>
         // DirectPlanAdapter(other)
