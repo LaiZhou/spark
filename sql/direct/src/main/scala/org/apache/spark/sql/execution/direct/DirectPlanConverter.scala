@@ -21,8 +21,8 @@ import org.apache.spark.sql.catalyst.expressions
 import org.apache.spark.sql.catalyst.expressions.SortOrder
 import org.apache.spark.sql.execution._
 import org.apache.spark.sql.execution.aggregate.{HashAggregateExec, ObjectHashAggregateExec, SortAggregateExec}
-import org.apache.spark.sql.execution.window.WindowDirectExec
 import org.apache.spark.sql.execution.joins.{BroadcastNestedLoopJoinExec, CartesianProductExec, HashJoin, SortMergeJoinExec}
+import org.apache.spark.sql.execution.window.WindowDirectExec
 import org.apache.spark.sql.execution.window.WindowExec
 object DirectPlanConverter {
 

@@ -232,7 +232,8 @@ case class DirectPlanAdapter(sparkPlan: SparkPlan) extends DirectPlan {
 
   override def output: Seq[Attribute] = sparkPlan.output
 
-  override def children: Seq[DirectPlan] = sparkPlan.children.map(DirectPlanConverter.convertToDirectPlan)
+  override def children: Seq[DirectPlan] =
+    sparkPlan.children.map(DirectPlanConverter.convertToDirectPlan)
 
   override def doExecute(): Iterator[InternalRow] = {
     val s = new Stopwatch().start()
