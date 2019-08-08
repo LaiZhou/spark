@@ -42,7 +42,7 @@ object SQLExample {
         .config("spark.some.config.option", "some-value")
         .config("spark.sql.shuffle.partitions", 1)
         .config("spark.default.parallelism", 1)
-        .config("spark.sql.codegen.wholeStage", false)
+//        .config("spark.sql.codegen.wholeStage", false)
         .config("spark.executor.heartbeatInterval", 60)
         .master("local[1]")
         .getOrCreate()
@@ -63,8 +63,9 @@ object SQLExample {
         .createDataFrame(List(("a", 2, 0), ("bbb", 2, 1), ("c", 3, 0), ("ddd", 4, 1), ("e", 5, 1)))
         .toDF("name", "age", "genda")
     df.createOrReplaceTempView("people")
-    val df1 = spark.sql("SELECT name,ROW_NUMBER() OVER " +
-        "(PARTITION BY genda ORDER BY name) as row FROM people")
+//    val df1 = spark.sql("SELECT name,ROW_NUMBER() OVER " +
+//        "(PARTITION BY genda ORDER BY name) as row FROM people")
+    val df1 = spark.sql("SELECT substring(name,0,1) ,age FROM people where age>(select min(age) from people)")
     println(df1.collect())
   }
 
