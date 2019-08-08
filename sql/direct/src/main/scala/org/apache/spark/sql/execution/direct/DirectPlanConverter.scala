@@ -104,6 +104,12 @@ object DirectPlanConverter {
       case cartesianProductExec: CartesianProductExec =>
         DirectPlanAdapter(cartesianProductExec)
 
+      // limit
+      case localLimitExec: LocalLimitExec =>
+        LimitDirectExec(
+          localLimitExec.limit,
+          convertToDirectPlan(localLimitExec.child))
+
       // window
       case windowExec: WindowExec =>
         WindowDirectExec(
