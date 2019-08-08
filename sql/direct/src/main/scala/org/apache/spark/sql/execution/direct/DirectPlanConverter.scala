@@ -20,32 +20,58 @@ package org.apache.spark.sql.execution.direct
 import org.apache.spark.sql.catalyst.expressions
 import org.apache.spark.sql.catalyst.expressions.SortOrder
 import org.apache.spark.sql.execution._
-import org.apache.spark.sql.execution.aggregate.{HashAggregateExec, ObjectHashAggregateExec, SortAggregateExec}
-import org.apache.spark.sql.execution.joins.{BroadcastNestedLoopJoinExec, CartesianProductExec, HashJoin, SortMergeJoinExec}
-import org.apache.spark.sql.execution.window.WindowDirectExec
-import org.apache.spark.sql.execution.window.WindowExec
+import org.apache.spark.sql.execution.aggregate.{
+  HashAggregateExec,
+  ObjectHashAggregateExec,
+  SortAggregateExec
+}
+import org.apache.spark.sql.execution.joins.{
+  BroadcastNestedLoopJoinExec,
+  CartesianProductExec,
+  HashJoin,
+  SortMergeJoinExec
+}
+import org.apache.spark.sql.execution.window.{WindowDirectExec, WindowExec}
 object DirectPlanConverter {
 
-  def convert(plan: SparkPlan): DirectPlan = {
-    // do prepare
-    val plan1 = sureDistributionAndOrdering(plan)
-    convertToDirectPlan(plan1)
-
-  }
-
-  def convertToDirectPlan(plan: SparkPlan): DirectPlan = {
-    val plan0 = plan.transformAllExpressions {
+  private def planSubqueries(plan: SparkPlan): SparkPlan = {
+    plan.transformAllExpressions {
       case subquery: expressions.ScalarSubquery =>
         val directExecutedPlan =
-          DirectPlanConverter.convertToDirectPlan(new QueryExecution(
+          DirectPlanConverter.convert(new QueryExecution(
             DirectExecutionContext.get().activeSparkSession,
             subquery.plan).sparkPlan)
         ScalarDirectSubquery(
           SubqueryDirectExec(s"scalar-subquery#${subquery.exprId.id}", directExecutedPlan),
           subquery.exprId)
     }
+  }
 
-    plan0 match {
+  private def ensureOrdering(operator: SparkPlan): SparkPlan = {
+    operator.transformUp {
+      case operator: SparkPlan =>
+        var children: Seq[SparkPlan] = operator.children
+        val requiredChildOrderings: Seq[Seq[SortOrder]] = operator.requiredChildOrdering
+        children = children.zip(requiredChildOrderings).map {
+          case (child, requiredOrdering) =>
+            if (SortOrder.orderingSatisfies(child.outputOrdering, requiredOrdering)) {
+              child
+            } else {
+              SortExec(requiredOrdering, global = false, child = child)
+            }
+        }
+        operator.withNewChildren(children)
+    }
+  }
+
+  def convert(plan: SparkPlan): DirectPlan = {
+    var preparedSparkPlan = planSubqueries(plan)
+    preparedSparkPlan = ensureOrdering(preparedSparkPlan)
+    convertToDirectPlan(preparedSparkPlan)
+  }
+
+  private def convertToDirectPlan(plan: SparkPlan): DirectPlan = {
+    plan match {
       // basic
       case ProjectExec(projectList, child) =>
         ProjectDirectExec(projectList, convertToDirectPlan(child))
@@ -78,12 +104,17 @@ object DirectPlanConverter {
       case cartesianProductExec: CartesianProductExec =>
         DirectPlanAdapter(cartesianProductExec)
 
+      // window
       case windowExec: WindowExec =>
         WindowDirectExec(
           windowExec.windowExpression,
           windowExec.partitionSpec,
           windowExec.orderSpec,
           convertToDirectPlan(windowExec.child))
+
+      // sort
+      case sortExec: SortExec =>
+        SortDirectExec(sortExec.sortOrder, convertToDirectPlan(sortExec.child))
 
       // aggregate
       case objectHashAggregateExec: ObjectHashAggregateExec =>
@@ -112,12 +143,6 @@ object DirectPlanConverter {
           sortAggregateExec.initialInputBufferOffset,
           sortAggregateExec.resultExpressions,
           convertToDirectPlan(sortAggregateExec.child))
-      case sortExec: SortExec =>
-        SortDirectExec(
-          sortExec.sortOrder,
-          sortExec.global,
-          convertToDirectPlan(sortExec.child),
-          sortExec.testSpillFrequency)
 
       // TODO other
       case other =>
@@ -126,21 +151,5 @@ object DirectPlanConverter {
     }
   }
 
-  def sureDistributionAndOrdering(operator: SparkPlan): SparkPlan = {
-    // only ordering
-    operator.transformUp {
-      case operator: SparkPlan =>
-        var children: Seq[SparkPlan] = operator.children
-        val requiredChildOrderings: Seq[Seq[SortOrder]] = operator.requiredChildOrdering
-        children = children.zip(requiredChildOrderings).map {
-          case (child, requiredOrdering) =>
-            if (SortOrder.orderingSatisfies(child.outputOrdering, requiredOrdering)) {
-              child
-            } else {
-              SortExec(requiredOrdering, global = false, child = child)
-            }
-        }
-        operator.withNewChildren(children)
-    }
-  }
+
 }

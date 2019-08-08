@@ -16,110 +16,56 @@
  */
 package org.apache.spark.examples.sql
 
-import java.util.concurrent.TimeUnit
-
-import org.apache.commons.lang3.time.StopWatch
-
-import org.apache.spark.sql.{DirectSparkSession, Row, SparkSession}
+// $example on:programmatic_schema$
+import org.apache.spark.sql.Row
+// $example off:programmatic_schema$
+// $example on:init_session$
+import org.apache.spark.sql.SparkSession
+// $example off:init_session$
+// $example on:programmatic_schema$
+// $example on:data_types$
 import org.apache.spark.sql.types._
+// $example off:data_types$
+// $example off:programmatic_schema$
 
-object SparkDirectSQLExample {
+object SQLExample {
 
   // $example on:create_ds$
   case class Person(name: String, age: Long)
-
   // $example off:create_ds$
 
   def main(args: Array[String]) {
     // $example on:init_session$
-    val spark = DirectSparkSession.builder().getOrCreate()
-
-    // code gen dir prepare
-//    val code_gen_path = "target/generated-sources"
-//    sys.props(ICookable.SYSTEM_PROPERTY_SOURCE_DEBUGGING_ENABLE) = "true"
-//    sys.props(ICookable.SYSTEM_PROPERTY_SOURCE_DEBUGGING_DIR) = code_gen_path
+    val spark = SparkSession
+        .builder()
+        .appName("Spark SQL basic example")
+        .config("spark.some.config.option", "some-value")
+        .config("spark.sql.shuffle.partitions", 1)
+        .config("spark.default.parallelism", 1)
+        .config("spark.sql.codegen.wholeStage", false)
+        .config("spark.executor.heartbeatInterval", 60)
+        .master("local[1]")
+        .getOrCreate()
 
     // For implicit conversions like converting RDDs to DataFrames
     // $example off:init_session$
 
     runBasicDataFrameExample(spark)
-    //    runDatasetCreationExample(spark)
-    //    runInferSchemaExample(spark)
-    //    runProgrammaticSchemaExample(spark)
-//    runSubqueryExample(spark)
+//    runDatasetCreationExample(spark)
+//    runInferSchemaExample(spark)
+//    runProgrammaticSchemaExample(spark)
 
     spark.stop()
   }
 
-  private def runBasicDataFrameExample(spark: DirectSparkSession): Unit = {
-    // $example on:create_df$
+  private def runBasicDataFrameExample(spark: SparkSession): Unit = {
     val df = spark
-      .createDataFrame(List(("a", 2, 0), ("bbb", 2, 1), ("c", 3, 0), ("ddd", 4, 1), ("e", 5, 1)))
-      .toDF("name", "age", "genda")
-    val df2 = spark
-      .createDataFrame(List(("a", 1, 0), ("b", 2, 1), ("c", 3, 0)))
-      .toDF("name", "age", "genda")
+        .createDataFrame(List(("a", 2, 0), ("bbb", 2, 1), ("c", 3, 0), ("ddd", 4, 1), ("e", 5, 1)))
+        .toDF("name", "age", "genda")
     df.createOrReplaceTempView("people")
-    df2.createOrReplaceTempView("people2")
-    //    val sqlDF = spark.sql("SELECT substring(name,0,1) as c1 ,age as c2,(select max(age)  from people ) as maxAge FROM people where age>1")
-
-//    val sqlDF = spark.sql("SELECT substring(name,0,1) as c1 ,age as c2 FROM people where age>1")
-//    val sqlDF = spark.sql("SELECT substring(t1.name,0,1) as c1 ,substring(t2.name,0,2) as c2 FROM people t1,people2 t2 where t1.name=t2.name and t2.age>0")
-
-    //    val rt = sqlDF.collect()
-    val s1 = StopWatch.createStarted()
-//    val sqlDF = spark.sqlDirectly("SELECT genda,max(age),count(*) FROM people group by genda")
-    val sqlDF = spark.sqlDirectly("SELECT name,ROW_NUMBER() OVER (PARTITION BY genda ORDER BY name) as row FROM people")
-    val rt = sqlDF.data
-    s1.stop()
-    println("s1:" + s1.getTime(TimeUnit.MILLISECONDS))
-    println(rt.mkString(","))
-
-    spark.registerTable("t1", sqlDF)
-
-    val res = spark.sqlDirectly("select * from t1")
-    val ts1 = spark.catalog.listTables().collect()
-
-    val spark1 = spark.newSession()
-    val ts2 = spark1.catalog.listTables().collect()
-    println("end")
-    //    val s2 = StopWatch.createStarted()
-//    val rt2 = sqlDF.collectDirectly()
-//    s2.stop()
-//    println("s2:" + s2.getTime(TimeUnit.MILLISECONDS))
-    // +----+-------+
-    // | age|   name|
-    // +----+-------+
-    // |null|Michael|
-    // |  30|   Andy|
-    // |  19| Justin|
-    // +----+-------+
-    // $example off:run_sql$
-
-    // $example on:global_temp_view$
-    // Register the DataFrame as a global temporary view
-    //    df.createGlobalTempView("people")
-    //
-    //    // Global temporary view is tied to a system preserved database `global_temp`
-    //    spark.sql("SELECT * FROM global_temp.people").show()
-    //    // +----+-------+
-    //    // | age|   name|
-    //    // +----+-------+
-    //    // |null|Michael|
-    //    // |  30|   Andy|
-    //    // |  19| Justin|
-    //    // +----+-------+
-    //
-    //    // Global temporary view is cross-session
-    //    spark.newSession().sql("SELECT * FROM global_temp.people").show()
-    // +----+-------+
-    // | age|   name|
-    // +----+-------+
-    // |null|Michael|
-    // |  30|   Andy|
-    // |  19| Justin|
-    // +----+-------+
-    // $example off:global_temp_view$
+    val df1 = spark.sql("SELECT name,ROW_NUMBER() OVER " +
+        "(PARTITION BY genda ORDER BY name) as row FROM people")
+    println(df1.collect())
   }
 
   private def runDatasetCreationExample(spark: SparkSession): Unit = {
@@ -206,8 +152,7 @@ object SparkDirectSQLExample {
     val schemaString = "name age"
 
     // Generate the schema based on the string of schema
-    val fields = schemaString
-      .split(" ")
+    val fields = schemaString.split(" ")
       .map(fieldName => StructField(fieldName, StringType, nullable = true))
     val schema = StructType(fields)
 
@@ -236,29 +181,5 @@ object SparkDirectSQLExample {
     // | Name: Justin|
     // +-------------+
     // $example off:programmatic_schema$
-  }
-
-  private def runSubqueryExample(spark: DirectSparkSession): Unit = {
-    // $example on:subquery$
-    val df = spark
-      .createDataFrame(List(("a", 2, 0), ("bbb", 2, 1), ("c", 3, 0), ("ddd", 4, 1), ("e", 5, 1)))
-      .toDF("name", "age", "genda")
-
-    df.createOrReplaceTempView("people")
-
-    //    val rt = sqlDF.collect()
-    val s1 = StopWatch.createStarted()
-    val sqlDF = spark.sqlDirectly("""
-        |select sum(age), sum(genda) from people where age < (
-        |select max(age) from people
-        |)
-        |""".stripMargin)
-    val rt = sqlDF.data
-    s1.stop()
-    // scalastyle:off println
-    println("s1:" + s1.getTime(TimeUnit.MILLISECONDS))
-    println(rt.mkString(","))
-    // scalastyle:off println
-    // $example off:subquery$
   }
 }
