@@ -47,6 +47,7 @@ object SparkDirectSQLExample {
     //    runInferSchemaExample(spark)
     //    runProgrammaticSchemaExample(spark)
 //    runSubqueryExample(spark)
+    runGenerateExample(spark)
 
     spark.stop()
   }
@@ -252,6 +253,36 @@ object SparkDirectSQLExample {
         |select sum(age), sum(genda) from people where age < (
         |select max(age) from people
         |)
+        |""".stripMargin)
+    val rt = sqlDF.data
+    s1.stop()
+    // scalastyle:off println
+    println("s1:" + s1.getTime(TimeUnit.MILLISECONDS))
+    println(rt.mkString(","))
+    // scalastyle:off println
+    // $example off:subquery$
+  }
+
+  private def runGenerateExample(spark: DirectSparkSession): Unit = {
+    // $example on:subquery$
+    val df = spark
+      .createDataFrame(List(("a", 2, 0), ("bbb", 2, 1), ("c", 3, 0), ("ddd", 4, 1), ("e", 5, 1)))
+      .toDF("name", "age", "genda")
+
+    df.createOrReplaceTempView("people")
+
+    //    val rt = sqlDF.collect()
+    val s1 = StopWatch.createStarted()
+
+    val sqlDF = spark.sqlDirectly(
+      """
+        |select
+        |age, str
+        |from people
+        |LATERAL VIEW
+        |explode(split(name, '')) mm
+        |as str
+        |
         |""".stripMargin)
     val rt = sqlDF.data
     s1.stop()
