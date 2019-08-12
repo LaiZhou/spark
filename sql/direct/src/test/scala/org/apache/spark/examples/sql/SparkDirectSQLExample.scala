@@ -308,7 +308,7 @@ object SparkDirectSQLExample {
       val sql_left =
         """
                      |select p.name, p.age, g.level from people as p left outer join
-                     |game as g on p.name = g.name
+                     |game as g on p.name = g.name where p.age > 2
                      |
                      |""".stripMargin
       val sql_left_outer_join_DF = spark.sqlDirectly(sql_left)
@@ -329,7 +329,7 @@ object SparkDirectSQLExample {
       val sql_right =
         """
 select p.name, p.age, g.level from people as p right outer join
-game as g on p.name = g.name
+game as g on p.name = g.name where p.age > 2
 
 """.stripMargin
 
