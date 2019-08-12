@@ -111,13 +111,13 @@ class DirectSparkSession(sparkContext: SparkContext) extends SparkSession(sparkC
   def registerTable(name: String, table: DirectDataTable): Unit = {
     SparkSession.setActiveSession(this)
     val converter = CatalystTypeConverters.createToCatalystConverter(table.schema)
-    Dataset
+    val plan = Dataset
       .ofRows(
         self,
         LocalRelation(
           table.schema.toAttributes,
-          table.data.map(converter(_).asInstanceOf[InternalRow])))
-      .createOrReplaceTempView(name)
+          table.data.map(converter(_).asInstanceOf[InternalRow]))).logicalPlan
+    sessionState.catalog.createTempView(name, plan, true)
   }
 
 }

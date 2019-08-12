@@ -37,12 +37,26 @@ import org.apache.spark.sql.catalyst.analysis.{
   UpdateAttributeNullability,
   UpdateOuterReferences
 }
+import org.apache.spark.sql.catalyst.catalog.SessionCatalog
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.internal.{BaseSessionStateBuilder, SessionState}
 
 class DirectSessionStateBuilder(session: SparkSession, parentState: Option[SessionState] = None)
     extends BaseSessionStateBuilder(session, parentState) {
+
+  override protected lazy val catalog: SessionCatalog = {
+    val catalog = new DirectSessionCatalog(
+      () => session.sharedState.externalCatalog,
+      () => session.sharedState.globalTempViewManager,
+      functionRegistry,
+      conf,
+      SessionState.newHadoopConf(session.sparkContext.hadoopConfiguration, conf),
+      sqlParser,
+      resourceLoader)
+    parentState.foreach(_.catalog.copyStateTo(catalog))
+    catalog
+  }
 
   override protected def newBuilder: NewBuilder = new DirectSessionStateBuilder(_, _)
 
