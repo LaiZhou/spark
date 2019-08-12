@@ -48,6 +48,7 @@ object SparkDirectSQLExample {
     //    runProgrammaticSchemaExample(spark)
 //    runSubqueryExample(spark)
     runGenerateExample(spark)
+    runViewExample(spark)
 
     spark.stop()
   }
@@ -291,5 +292,22 @@ object SparkDirectSQLExample {
     println(rt.mkString(","))
     // scalastyle:off println
     // $example off:subquery$
+  }
+
+  def runViewExample(spark: DirectSparkSession): Unit = {
+    // $example on:view$
+    val df = spark
+      .createDataFrame(List(("a", 2, 0), ("bbb", 2, 1), ("c", 3, 0), ("ddd", 4, 1), ("e", 5, 1)))
+      .toDF("name", "age", "genda")
+    val table = spark.sqlDirectly("select * from people")
+    spark.sql("create database mm")
+    spark.registerTable("mm.test", table)
+    val table1 = spark.sqlDirectly(
+      """
+        |select  genda, count(1) as cnt from mm.test group by genda
+        |""".stripMargin)
+    println(table1.data.mkString(","))
+    // $example off:view$
+
   }
 }
