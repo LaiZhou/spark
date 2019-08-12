@@ -73,7 +73,9 @@ class DirectSessionCatalog(
     } else {
       val db = formatDatabaseName(identifier.database.get)
       val table = formatTableName(identifier.table)
-      requireDbExists(db)
+      if (!directTempViews.contains(db)) {
+        directTempViews.put(db, mutable.Map[String, LogicalPlan]())
+      }
       directTempViews(db).put(table, tableDefinition)
     }
   }

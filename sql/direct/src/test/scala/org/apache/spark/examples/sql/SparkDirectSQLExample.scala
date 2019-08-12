@@ -43,10 +43,10 @@ object SparkDirectSQLExample {
     // $example off:init_session$
 
     runBasicDataFrameExample(spark)
-    //    runDatasetCreationExample(spark)
-    //    runInferSchemaExample(spark)
-    //    runProgrammaticSchemaExample(spark)
-//    runSubqueryExample(spark)
+//    //    runDatasetCreationExample(spark)
+//    //    runInferSchemaExample(spark)
+//    //    runProgrammaticSchemaExample(spark)
+////    runSubqueryExample(spark)
     runGenerateExample(spark)
     runViewExample(spark)
 
@@ -300,7 +300,6 @@ object SparkDirectSQLExample {
       .createDataFrame(List(("a", 2, 0), ("bbb", 2, 1), ("c", 3, 0), ("ddd", 4, 1), ("e", 5, 1)))
       .toDF("name", "age", "genda")
     val table = spark.sqlDirectly("select * from people")
-    spark.sql("create database mm")
     spark.registerTable("mm.test", table)
     val table1 = spark.sqlDirectly(
       """
