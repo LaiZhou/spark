@@ -21,8 +21,22 @@ import java.util.concurrent.TimeUnit.NANOSECONDS
 
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Expression
-import org.apache.spark.sql.catalyst.plans.JoinType
-import org.apache.spark.sql.execution.joins.{DirectHashJoin, HashedRelation}
+import org.apache.spark.sql.catalyst.plans.{
+  ExistenceJoin,
+  InnerLike,
+  JoinType,
+  LeftAnti,
+  LeftOuter,
+  LeftSemi,
+  RightOuter
+}
+import org.apache.spark.sql.execution.joins.{
+  BuildLeft,
+  BuildRight,
+  BuildSide,
+  DirectHashJoin,
+  HashedRelation
+}
 
 case class HashJoinDirectExec(
     leftKeys: Seq[Expression],
@@ -35,7 +49,8 @@ case class HashJoinDirectExec(
     with DirectHashJoin {
 
   override def doExecute(): Iterator[InternalRow] = {
-    val buildIter = left.execute()
+
+    val buildIter = buildPlan.execute()
     val streamedIter = streamedPlan.execute()
 
     val buildDataSize = longMetric("buildDataSize", DirectSQLMetrics.createSizeMetric())
