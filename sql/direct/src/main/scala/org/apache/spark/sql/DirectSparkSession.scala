@@ -23,7 +23,6 @@ import scala.reflect.runtime.{universe => ru}
 import scala.util.control.NonFatal
 
 import org.apache.spark.{SparkConf, SparkContext, TaskContext, TaskContextImpl}
-
 import org.apache.spark.internal.Logging
 import org.apache.spark.internal.config.MEMORY_OFFHEAP_ENABLED
 import org.apache.spark.memory.{TaskMemoryManager, UnifiedMemoryManager}
@@ -37,7 +36,7 @@ import org.apache.spark.sql.execution.direct.{
   DirectPlanConverter,
   DirectPlanStrategies
 }
-import org.apache.spark.sql.internal.{BaseSessionStateBuilder, SessionState, SQLConf}
+import org.apache.spark.sql.internal.{BaseSessionStateBuilder, SessionState}
 import org.apache.spark.util.Utils
 
 class DirectSparkSession(sparkContext: SparkContext) extends SparkSession(sparkContext) {
