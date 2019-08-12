@@ -42,11 +42,12 @@ object SparkDirectSQLExample {
     // For implicit conversions like converting RDDs to DataFrames
     // $example off:init_session$
 
-    runBasicDataFrameExample(spark)
+//    runBasicDataFrameExample(spark)
     //    runDatasetCreationExample(spark)
     //    runInferSchemaExample(spark)
     //    runProgrammaticSchemaExample(spark)
 //    runSubqueryExample(spark)
+    runJoinExample(spark)
 
     spark.stop()
   }
@@ -260,5 +261,67 @@ object SparkDirectSQLExample {
     println(rt.mkString(","))
     // scalastyle:off println
     // $example off:subquery$
+  }
+
+  private def runJoinExample(spark: DirectSparkSession) : Unit = {
+    val df1 = spark
+    .createDataFrame(
+      List(("a", 2, 0), ("bbb", 2, 1), ("ddd", 4, 1), ("e", 5, 1))
+    ).toDF("name", "age", "genda")
+    df1.createOrReplaceTempView("people")
+
+    val df2 = spark
+      .createDataFrame(
+        List(("a", 199), ("bbb", 205), ("c", 399), ("ddd", 466))
+      ).toDF("name", "level")
+    df2.createOrReplaceTempView("game")
+
+
+    val sql_left = """
+                     |select p.name, p.age, g.level from people as p left outer join
+                     |game as g on p.name = g.name
+                     |
+                     |""".stripMargin
+    val sql_left_outer_join_DF = spark.sqlDirectly(sql_left)
+
+    val rt1 = sql_left_outer_join_DF.data
+    println(rt1.mkString(","))
+//      +----+---+-----+
+//      |name|age|level|
+//      +----+---+-----+
+//      |   a|  2|  199|
+//      | bbb|  2|  205|
+//      | ddd|  4|  466|
+//      |   e|  5| null|
+//      +----+---+-----+
+
+    spark.sql(sql_left).show()
+
+    val sql_right =
+    """
+select p.name, p.age, g.level from people as p right outer join
+game as g on p.name = g.name
+
+""".stripMargin
+
+    val sql_right_outer_join_DF = spark.sqlDirectly(sql_right)
+    val rt2 = sql_right_outer_join_DF.data
+    println(rt2.mkString(","))
+
+//    +----+----+-----+
+//    |name| age|level|
+//    +----+----+-----+
+//    |   a|   2|  199|
+//    | bbb|   2|  205|
+//    |null|null|  399|
+//    | ddd|   4|  466|
+//    +----+----+-----+
+
+    spark.sql(sql_right).show()
+
+
+
+
+
   }
 }
