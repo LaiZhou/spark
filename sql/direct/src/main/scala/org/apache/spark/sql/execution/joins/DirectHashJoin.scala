@@ -52,8 +52,23 @@ trait DirectHashJoin {
     }
   }
 
-  // use left as buildSide in direct mode,since we can't get stats of the children plan
-  protected lazy val (buildPlan, streamedPlan) = (left, right)
+  private def canBuildLeft(joinType: JoinType): Boolean = joinType match {
+    case _: InnerLike | RightOuter => true
+    case _ => false
+  }
+
+  protected lazy val buildSide: BuildSide = {
+    if (canBuildLeft(joinType)) {
+      BuildLeft
+    } else {
+      BuildRight
+    }
+  }
+
+  protected lazy val (buildPlan, streamedPlan) = buildSide match {
+    case BuildLeft => (left, right)
+    case BuildRight => (right, left)
+  }
 
   protected lazy val (buildKeys, streamedKeys) = {
     require(
@@ -61,7 +76,10 @@ trait DirectHashJoin {
       "Join keys from two sides should have same types")
     val lkeys = bindReferences(HashJoin.rewriteKeyExpr(leftKeys), left.output)
     val rkeys = bindReferences(HashJoin.rewriteKeyExpr(rightKeys), right.output)
-    (lkeys, rkeys)
+    buildSide match {
+      case BuildLeft => (lkeys, rkeys)
+      case BuildRight => (rkeys, lkeys)
+    }
   }
 
   protected def buildSideKeyGenerator(): Projection =
