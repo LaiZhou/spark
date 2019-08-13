@@ -17,7 +17,11 @@
 package org.apache.spark.examples.sql
 
 // $example on:programmatic_schema$
-import org.apache.spark.sql.Row
+import java.util.concurrent.TimeUnit
+
+import org.apache.commons.lang3.time.StopWatch
+
+import org.apache.spark.sql.{DirectSparkSession, Row}
 // $example off:programmatic_schema$
 // $example on:init_session$
 import org.apache.spark.sql.SparkSession
@@ -42,7 +46,7 @@ object SQLExample {
         .config("spark.some.config.option", "some-value")
         .config("spark.sql.shuffle.partitions", 1)
         .config("spark.default.parallelism", 1)
-//        .config("spark.sql.codegen.wholeStage", false)
+        .config("spark.sql.codegen.wholeStage", true)
         .config("spark.executor.heartbeatInterval", 60)
         .master("local[1]")
         .getOrCreate()
@@ -50,12 +54,36 @@ object SQLExample {
     // For implicit conversions like converting RDDs to DataFrames
     // $example off:init_session$
 
-    runBasicDataFrameExample(spark)
+//    runBasicDataFrameExample(spark)
 //    runDatasetCreationExample(spark)
 //    runInferSchemaExample(spark)
 //    runProgrammaticSchemaExample(spark)
-
+    runSubqueryExample(spark)
     spark.stop()
+  }
+
+  private def runSubqueryExample(spark: SparkSession): Unit = {
+    // $example on:subquery$
+    val df = spark
+        .createDataFrame(List(("a", 2, 0), ("bbb", 2, 1), ("c", 3, 0), ("ddd", 4, 1), ("e", 5, 1)))
+        .toDF("name", "age", "genda")
+
+    df.createOrReplaceTempView("people")
+
+    //    val rt = sqlDF.collect()
+    val s1 = StopWatch.createStarted()
+    val sqlDF = spark.sql("""
+                                    |select sum(age), sum(genda) from people where age < (
+                                    |select max(age) from people
+                                    |)
+                                    |""".stripMargin)
+    val rt = sqlDF.collect()
+    s1.stop()
+    // scalastyle:off println
+    println("s1:" + s1.getTime(TimeUnit.MILLISECONDS))
+    println(rt.mkString(","))
+    // scalastyle:off println
+    // $example off:subquery$
   }
 
   private def runBasicDataFrameExample(spark: SparkSession): Unit = {

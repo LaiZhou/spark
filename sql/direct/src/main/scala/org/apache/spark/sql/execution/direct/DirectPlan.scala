@@ -51,7 +51,7 @@ abstract class DirectPlan extends QueryPlan[DirectPlan] with Logging {
    * access to the sqlContext for RDD operations or configuration this field is automatically
    * populated by the query planning infrastructure.
    */
-  @transient final val sqlContext = SparkSession.getActiveSession.map(_.sqlContext).orNull
+  @transient final val sqlContext = DirectExecutionContext.get().activeSparkSession.sqlContext
 
   protected def sparkContext = sqlContext.sparkContext
 
@@ -136,14 +136,14 @@ abstract class DirectPlan extends QueryPlan[DirectPlan] with Logging {
    */
   final def prepare(): Unit = {
     // doPrepare() may depend on it's children, we should call prepare() on all the children first.
-    children.foreach(_.prepare())
-    synchronized {
-      if (!prepared) {
-        prepareSubqueries()
-        doPrepare()
-        markPrepared()
-      }
-    }
+//    children.foreach(_.prepare())
+//    synchronized {
+//      if (!prepared) {
+//        prepareSubqueries()
+//        doPrepare()
+//        markPrepared()
+//      }
+//    }
   }
 
   protected def doExecute(): Iterator[InternalRow]

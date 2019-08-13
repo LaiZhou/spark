@@ -64,14 +64,31 @@ object DirectPlanConverter {
     }
   }
 
-  def convert(plan: SparkPlan): DirectPlan = {
-    var preparedSparkPlan = planSubqueries(plan)
-    preparedSparkPlan = ensureOrdering(preparedSparkPlan)
-    convertToDirectPlan(preparedSparkPlan)
+  private def collapseCodegenStages(operator: SparkPlan): SparkPlan = {
+    CollapseCodegenStages(DirectExecutionContext.get().activeSparkSession.sessionState.conf)
+      .apply(operator)
   }
 
-  private def convertToDirectPlan(plan: SparkPlan): DirectPlan = {
+  def convert(plan: SparkPlan): DirectPlan = {
+    var preparedSparkPlan =
+      PlanSubqueries(DirectExecutionContext.get().activeSparkSession).apply(plan)
+    preparedSparkPlan = ensureOrdering(preparedSparkPlan)
+    preparedSparkPlan = collapseCodegenStages(preparedSparkPlan)
+
+    val res = convertToDirectPlan(preparedSparkPlan)
+    res
+
+  }
+
+  def convertToDirectPlan(plan: SparkPlan): DirectPlan = {
     plan match {
+      // WholeStageCodegenExec
+      case codegenExec: WholeStageCodegenExec =>
+        DirectWholeStageCodegenExec(codegenExec)
+
+      case inputAdapter: InputAdapter =>
+        DirectInputAdapter(convertToDirectPlan(inputAdapter.child))
+
       // basic
       case ProjectExec(projectList, child) =>
         ProjectDirectExec(projectList, convertToDirectPlan(child))
@@ -158,6 +175,5 @@ object DirectPlanConverter {
         throw new UnsupportedOperationException("can't convert this SparkPlan " + other)
     }
   }
-
 
 }

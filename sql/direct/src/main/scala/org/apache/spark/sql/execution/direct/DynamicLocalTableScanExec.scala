@@ -87,9 +87,6 @@ case class DynamicLocalTableScanExec(output: Seq[Attribute], name: TableIdentifi
   // Input is already UnsafeRows.
   override protected val createUnsafeProjection: Boolean = false
 
-  // Do not codegen when there is no parent - to support the fast driver-local collect/take paths.
-  override def supportCodegen: Boolean = (parent != null)
-
   override def inputRDD: RDD[InternalRow] = rdd
 
 }
