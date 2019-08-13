@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.spark.sql.execution.direct
+package org.apache.spark.sql.execution.direct.general
 
 import java.util.Properties
 import java.util.concurrent.TimeUnit.NANOSECONDS
@@ -30,6 +30,7 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression, GenericInternalRow, IsNotNull, NamedExpression, NullIntolerant, PredicateHelper, UnsafeProjection, UnsafeRow}
 import org.apache.spark.sql.catalyst.expressions.codegen.Predicate
 import org.apache.spark.sql.execution.SQLExecution
+import org.apache.spark.sql.execution.direct.{DirectExecutionContext, DirectPlan, DirectSQLMetrics, UnaryDirectExecNode}
 import org.apache.spark.util.ThreadUtils
 
 case class ProjectDirectExec(projectList: Seq[NamedExpression], child: DirectPlan)

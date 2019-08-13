@@ -32,7 +32,7 @@ object SparkDirectSQLExample {
 
   def main(args: Array[String]) {
     // $example on:init_session$
-    val spark = DirectSparkSession.builder().config("spark.sql.codegen.wholeStage", true)
+    val spark = DirectSparkSession.builder()
         .getOrCreate()
 
     // code gen dir prepare
@@ -43,11 +43,11 @@ object SparkDirectSQLExample {
     // For implicit conversions like converting RDDs to DataFrames
     // $example off:init_session$
 
-//    runBasicDataFrameExample(spark)
+    runBasicDataFrameExample(spark)
 //    //    runDatasetCreationExample(spark)
 //    //    runInferSchemaExample(spark)
 //    //    runProgrammaticSchemaExample(spark)
-    runSubqueryExample(spark)
+//    runSubqueryExample(spark)
 //    runGenerateExample(spark)
 //    runViewExample(spark)
 
@@ -64,10 +64,9 @@ object SparkDirectSQLExample {
       .toDF("name", "age", "genda")
     df.createOrReplaceTempView("people")
     df2.createOrReplaceTempView("people2")
-    //    val sqlDF = spark.sql("SELECT substring(name,0,1) as c1 ,age as c2,(select max(age)  from people ) as maxAge FROM people where age>1")
 
-//    val sqlDF = spark.sql("SELECT substring(name,0,1) as c1 ,age as c2 FROM people where age>1")
-//    val sqlDF = spark.sql("SELECT substring(t1.name,0,1) as c1 ,substring(t2.name,0,2) as c2 FROM people t1,people2 t2 where t1.name=t2.name and t2.age>0")
+//    val sqlDF = spark.sqlDirectly("SELECT substring(name,0,1) as c1 ,age as c2 FROM people where age>1")
+//    val sqlDF = spark.sqlDirectly("SELECT substring(t1.name,0,1) as c1 ,substring(t2.name,0,2) as c2 FROM people t1,people2 t2 where t1.name=t2.name and t2.age>0")
 
     //    val rt = sqlDF.collect()
     val s1 = StopWatch.createStarted()

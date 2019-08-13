@@ -19,12 +19,10 @@ package org.apache.spark.sql.execution.direct
 
 import scala.util.control.NonFatal
 
-import com.test.TestClass
-
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.codegen.CodeGenerator
-import org.apache.spark.sql.execution.{BufferedRowIterator, WholeStageCodegenExec}
+import org.apache.spark.sql.execution.{BufferedRowIterator, CodegenSupport, WholeStageCodegenExec}
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.util.Utils
 
@@ -64,7 +62,6 @@ case class DirectWholeStageCodegenExec(plan: WholeStageCodegenExec) extends Unar
 
   override protected def doExecute(): Iterator[InternalRow] = {
 
-    plan.prepare()
     val (ctx, cleanedSource) = plan.doCodeGen()
     // try to compile and fallback if it failed
     val (_, maxCodeSize) = try {
@@ -92,7 +89,7 @@ case class DirectWholeStageCodegenExec(plan: WholeStageCodegenExec) extends Unar
 
     var children = plan.child.children
     var parentPlan = plan.child
-    while (children.length == 1) {
+    while (children.length == 1&&parentPlan.isInstanceOf[CodegenSupport]) {
       parentPlan = children.head
       children = parentPlan.children
     }
@@ -132,6 +129,24 @@ case class DirectWholeStageCodegenExec(plan: WholeStageCodegenExec) extends Unar
         override def next: InternalRow = buffer.next()
       }
     }
+  }
+
+  override def generateTreeString(
+      depth: Int,
+      lastChildren: Seq[Boolean],
+      append: String => Unit,
+      verbose: Boolean,
+      prefix: String = "",
+      addSuffix: Boolean = false,
+      maxFields: Int): Unit = {
+    plan.generateTreeString(
+      depth,
+      lastChildren,
+      append,
+      verbose,
+      s"*($codegenStageId) ",
+      false,
+      maxFields)
   }
 
 }

@@ -22,6 +22,7 @@ import java.util.EventListener
 import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.execution.direct.general.ExecSubqueryExpression
 import org.apache.spark.sql.execution.metric.SQLMetric
 
 object DirectExecutionContext {

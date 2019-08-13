@@ -28,19 +28,11 @@ import org.codehaus.janino.InternalCompilerException
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{
-  Ascending,
-  Attribute,
-  AttributeSet,
-  BoundReference,
-  Expression,
-  InterpretedPredicate,
-  MutableProjection,
-  SortOrder
-}
+import org.apache.spark.sql.catalyst.expressions.{Ascending, Attribute, AttributeSet, BoundReference, Expression, InterpretedPredicate, MutableProjection, SortOrder}
 import org.apache.spark.sql.catalyst.expressions.codegen.{Predicate => GenPredicate, _}
 import org.apache.spark.sql.catalyst.plans.QueryPlan
 import org.apache.spark.sql.execution.SparkPlan
+import org.apache.spark.sql.execution.direct.general.ExecSubqueryExpression
 import org.apache.spark.sql.execution.metric.SQLMetric
 import org.apache.spark.sql.types.DataType
 

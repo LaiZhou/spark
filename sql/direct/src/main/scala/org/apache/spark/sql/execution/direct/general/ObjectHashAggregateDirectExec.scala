@@ -14,24 +14,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.spark.sql.execution.direct
+
+package org.apache.spark.sql.execution.direct.general
 
 import java.util.concurrent.TimeUnit.NANOSECONDS
 
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{
-  Attribute,
-  AttributeSeq,
-  AttributeSet,
-  NamedExpression,
-  UnsafeRow
-}
-import org.apache.spark.sql.catalyst.expressions.aggregate.{
-  AggregateExpression,
-  TypedImperativeAggregate
-}
+import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeSeq, AttributeSet, NamedExpression, UnsafeRow}
+import org.apache.spark.sql.catalyst.expressions.aggregate.{AggregateExpression, TypedImperativeAggregate}
 import org.apache.spark.sql.catalyst.util.truncatedString
 import org.apache.spark.sql.execution.aggregate.{HashAggregateExec, ObjectAggregationIterator}
+import org.apache.spark.sql.execution.direct.{DirectPlan, DirectSQLMetrics, UnaryDirectExecNode}
 
 /**
  * A hash-based aggregate operator that supports [[TypedImperativeAggregate]] functions that may

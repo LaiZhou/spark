@@ -15,28 +15,15 @@
  * limitations under the License.
  */
 
-package org.apache.spark.sql.execution.direct
+package org.apache.spark.sql.execution.direct.general
 
 import java.util.concurrent.TimeUnit.NANOSECONDS
 
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Expression
-import org.apache.spark.sql.catalyst.plans.{
-  ExistenceJoin,
-  InnerLike,
-  JoinType,
-  LeftAnti,
-  LeftOuter,
-  LeftSemi,
-  RightOuter
-}
-import org.apache.spark.sql.execution.joins.{
-  BuildLeft,
-  BuildRight,
-  BuildSide,
-  DirectHashJoin,
-  HashedRelation
-}
+import org.apache.spark.sql.catalyst.plans.JoinType
+import org.apache.spark.sql.execution.direct.{BinaryDirectExecNode, DirectExecutionContext, DirectPlan, DirectSQLMetrics}
+import org.apache.spark.sql.execution.joins.{DirectHashJoin, HashedRelation}
 
 case class HashJoinDirectExec(
     leftKeys: Seq[Expression],

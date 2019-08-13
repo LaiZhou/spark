@@ -15,18 +15,14 @@
  * limitations under the License.
  */
 
-package org.apache.spark.sql.execution.direct
+package org.apache.spark.sql.execution.direct.general
 
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{
-  Attribute,
-  AttributeSet,
-  NamedExpression,
-  UnsafeRow
-}
+import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeSet, NamedExpression, UnsafeRow}
 import org.apache.spark.sql.catalyst.expressions.aggregate.AggregateExpression
 import org.apache.spark.sql.catalyst.util.truncatedString
 import org.apache.spark.sql.execution.aggregate.SortBasedAggregationIterator
+import org.apache.spark.sql.execution.direct.{DirectPlan, DirectSQLMetrics, UnaryDirectExecNode}
 
 /**
  * Sort-based aggregate operator.

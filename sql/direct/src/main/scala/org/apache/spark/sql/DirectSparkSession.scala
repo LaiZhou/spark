@@ -226,6 +226,10 @@ object DirectSparkSession extends Logging {
       config("spark.sql.shuffle.partitions", 1)
       config("spark.default.parallelism", 1)
       config("spark.executor.heartbeatInterval", 60)
+      config("spark.sql.codegen.wholeStage", true)
+      config("spark.sql.codegen.fallback", false)
+      config("spark.sql.autoBroadcastJoinThreshold", 0)
+
       config("spark.sql.windowExec.buffer.in.memory.threshold", Integer.MAX_VALUE)
       master("local[1]")
 

@@ -15,21 +15,16 @@
  * limitations under the License.
  */
 
-package org.apache.spark.sql.execution.direct
+package org.apache.spark.sql.execution.direct.general
 
 import java.util.concurrent.TimeUnit.NANOSECONDS
 
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{
-  Attribute,
-  AttributeSeq,
-  AttributeSet,
-  NamedExpression,
-  UnsafeRow
-}
+import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeSeq, AttributeSet, NamedExpression, UnsafeRow}
 import org.apache.spark.sql.catalyst.expressions.aggregate.AggregateExpression
 import org.apache.spark.sql.catalyst.util.truncatedString
 import org.apache.spark.sql.execution.aggregate.{HashAggregateExec, TungstenAggregationIterator}
+import org.apache.spark.sql.execution.direct.{DirectPlan, DirectSQLMetrics, UnaryDirectExecNode}
 
 /**
  * Hash-based aggregate operator that can also fallback to sorting when data exceeds memory size.

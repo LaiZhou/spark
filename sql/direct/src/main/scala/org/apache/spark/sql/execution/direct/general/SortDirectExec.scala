@@ -15,14 +15,15 @@
  * limitations under the License.
  */
 
-package org.apache.spark.sql.execution.direct
+package org.apache.spark.sql.execution.direct.general
 
-import java.util.concurrent.TimeUnit._
+import java.util.concurrent.TimeUnit.NANOSECONDS
 
 import org.apache.spark.{SparkEnv, TaskContext}
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions._
+import org.apache.spark.sql.catalyst.expressions.{Attribute, BindReferences, SortOrder, SortPrefix, UnsafeProjection, UnsafeRow}
 import org.apache.spark.sql.execution.{SortPrefixUtils, UnsafeExternalRowSorter}
+import org.apache.spark.sql.execution.direct.{DirectPlan, DirectSQLMetrics, UnaryDirectExecNode}
 
 /**
  * Performs (external) sorting.

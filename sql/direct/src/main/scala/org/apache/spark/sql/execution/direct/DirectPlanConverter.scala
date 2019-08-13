@@ -17,13 +17,25 @@
 
 package org.apache.spark.sql.execution.direct
 
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions
 import org.apache.spark.sql.catalyst.expressions.SortOrder
+import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution._
 import org.apache.spark.sql.execution.aggregate.{
   HashAggregateExec,
   ObjectHashAggregateExec,
   SortAggregateExec
+}
+import org.apache.spark.sql.execution.direct.general.{
+  FilterDirectExec,
+  GenerateDirectExec,
+  HashAggregateDirectExec,
+  HashJoinDirectExec,
+  ObjectHashAggregateDirectExec,
+  ProjectDirectExec,
+  SortAggregateDirectExec,
+  SortDirectExec
 }
 import org.apache.spark.sql.execution.joins.{
   BroadcastNestedLoopJoinExec,
@@ -32,22 +44,32 @@ import org.apache.spark.sql.execution.joins.{
   SortMergeJoinExec
 }
 import org.apache.spark.sql.execution.window.{WindowDirectExec, WindowExec}
-object DirectPlanConverter {
+import org.apache.spark.sql.internal.SQLConf
 
-  private def planSubqueries(plan: SparkPlan): SparkPlan = {
+/**
+ * Plans scalar subqueries from that are present in the given [[SparkPlan]].
+ */
+case class PlanSubqueriesWithDirectChild(sparkSession: SparkSession) extends Rule[SparkPlan] {
+  def apply(plan: SparkPlan): SparkPlan = {
     plan.transformAllExpressions {
       case subquery: expressions.ScalarSubquery =>
-        val directExecutedPlan =
-          DirectPlanConverter.convert(new QueryExecution(
-            DirectExecutionContext.get().activeSparkSession,
-            subquery.plan).sparkPlan)
-        ScalarDirectSubquery(
-          SubqueryDirectExec(s"scalar-subquery#${subquery.exprId.id}", directExecutedPlan),
-          subquery.exprId)
+//
+//        val sparkPlan = new QueryExecution(sparkSession, subquery.plan).sparkPlan
+//        ScalarSubquery(
+//          SubqueryWithDirectChildExec(s"scalar-subquery#${subquery.exprId.id}", sparkPlan),
+//          subquery.exprId)
+        throw new UnsupportedOperationException("ScalarSubquery is not supported " + subquery)
+
     }
   }
+}
 
-  private def ensureOrdering(operator: SparkPlan): SparkPlan = {
+/**
+ *
+ * ensure the requiredOrdering of SparkPlan
+ */
+case class EnsureOrdering(conf: SQLConf) extends Rule[SparkPlan] {
+  def apply(operator: SparkPlan): SparkPlan = {
     operator.transformUp {
       case operator: SparkPlan =>
         var children: Seq[SparkPlan] = operator.children
@@ -63,37 +85,63 @@ object DirectPlanConverter {
         operator.withNewChildren(children)
     }
   }
+}
 
-  private def collapseCodegenStages(operator: SparkPlan): SparkPlan = {
-    CollapseCodegenStages(DirectExecutionContext.get().activeSparkSession.sessionState.conf)
-      .apply(operator)
+object DirectPlanConverter {
+
+  /** A sequence of rules that will be applied in order to the physical plan before execution. */
+  protected def preparations: Seq[Rule[SparkPlan]] =
+    Seq(
+      PlanSubqueriesWithDirectChild(DirectExecutionContext.get().activeSparkSession),
+      EnsureOrdering(DirectExecutionContext.get().activeSparkSession.sessionState.conf),
+      CollapseCodegenStages(DirectExecutionContext.get().activeSparkSession.sessionState.conf))
+
+  protected def prepareForExecution(plan: SparkPlan): SparkPlan = {
+    preparations.foldLeft(plan) { case (sp, rule) => rule.apply(sp) }
   }
 
   def convert(plan: SparkPlan): DirectPlan = {
-    var preparedSparkPlan =
-      PlanSubqueries(DirectExecutionContext.get().activeSparkSession).apply(plan)
-    preparedSparkPlan = ensureOrdering(preparedSparkPlan)
-    preparedSparkPlan = collapseCodegenStages(preparedSparkPlan)
-
+    val preparedSparkPlan = prepareForExecution(plan)
     val res = convertToDirectPlan(preparedSparkPlan)
     res
 
   }
 
   def convertToDirectPlan(plan: SparkPlan): DirectPlan = {
+    val wholeStageEnabled =
+      DirectExecutionContext.get().activeSparkSession.sqlContext.conf.wholeStageEnabled
+    val codegenFallback =
+      DirectExecutionContext.get().activeSparkSession.sqlContext.conf.codegenFallback
+
     plan match {
-      // WholeStageCodegenExec
-      case codegenExec: WholeStageCodegenExec =>
+
+      case codegenExec: WholeStageCodegenExec if wholeStageEnabled =>
         DirectWholeStageCodegenExec(codegenExec)
 
-      case inputAdapter: InputAdapter =>
+      case inputAdapter: InputAdapter if wholeStageEnabled =>
         DirectInputAdapter(convertToDirectPlan(inputAdapter.child))
 
+      case DynamicLocalTableScanExec(output, name) =>
+        LocalTableScanDirectExec(output, name)
+
+      case other =>
+        if (codegenFallback) {
+          convertGeneralSparkPlan(plan)
+        } else {
+          throw new UnsupportedOperationException(
+            "can't convert this SparkPlan for codegenFallback now is false " + other)
+        }
+    }
+  }
+
+  private def convertGeneralSparkPlan(plan: SparkPlan): DirectPlan = {
+    plan match {
       // basic
       case ProjectExec(projectList, child) =>
         ProjectDirectExec(projectList, convertToDirectPlan(child))
       case FilterExec(condition, child) =>
         FilterDirectExec(condition, convertToDirectPlan(child))
+
       case DynamicLocalTableScanExec(output, name) =>
         LocalTableScanDirectExec(output, name)
 
