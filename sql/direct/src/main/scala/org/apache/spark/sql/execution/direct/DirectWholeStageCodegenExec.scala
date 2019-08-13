@@ -19,6 +19,8 @@ package org.apache.spark.sql.execution.direct
 
 import scala.util.control.NonFatal
 
+import com.test.TestClass
+
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.codegen.CodeGenerator
@@ -60,8 +62,8 @@ case class DirectWholeStageCodegenExec(plan: WholeStageCodegenExec) extends Unar
 
   def codegenStageId: Int = plan.codegenStageId
 
-
   override protected def doExecute(): Iterator[InternalRow] = {
+
     plan.prepare()
     val (ctx, cleanedSource) = plan.doCodeGen()
     // try to compile and fallback if it failed
@@ -86,7 +88,7 @@ case class DirectWholeStageCodegenExec(plan: WholeStageCodegenExec) extends Unar
 
     val references = ctx.references.toArray
 
-    val durationMs = longMetric("pipelineTime")
+    val durationMs = longMetric("pipelineTime", DirectSQLMetrics.createTimingMetric())
 
     var children = plan.child.children
     var parentPlan = plan.child
@@ -101,6 +103,7 @@ case class DirectWholeStageCodegenExec(plan: WholeStageCodegenExec) extends Unar
       val inputDirectPlan = DirectPlanConverter.convertToDirectPlan(parentPlan)
       val iter = inputDirectPlan.execute()
       val (clazz, _) = CodeGenerator.compile(cleanedSource)
+//      var tc = new TestClass()
       val buffer = clazz.generate(references).asInstanceOf[BufferedRowIterator]
       buffer.init(0, Array(iter))
       new Iterator[InternalRow] {
@@ -117,6 +120,7 @@ case class DirectWholeStageCodegenExec(plan: WholeStageCodegenExec) extends Unar
       val leftIter = leftDirectPlan.execute()
       val rightIter = rightDirectPlan.execute()
       val (clazz, _) = CodeGenerator.compile(cleanedSource)
+//      var tc = new TestClass()
       val buffer = clazz.generate(references).asInstanceOf[BufferedRowIterator]
       buffer.init(0, Array(leftIter, rightIter))
       new Iterator[InternalRow] {
