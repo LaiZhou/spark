@@ -77,7 +77,7 @@ object SparkDirectSQLExample {
     println("s1:" + s1.getTime(TimeUnit.MILLISECONDS))
     println(rt.mkString(","))
 
-    spark.registerTable("t1", sqlDF)
+    spark.registerTempView("t1", sqlDF)
 
     val res = spark.sqlDirectly("select * from t1")
     val ts1 = spark.catalog.listTables().collect()
@@ -300,7 +300,7 @@ object SparkDirectSQLExample {
       .createDataFrame(List(("a", 2, 0), ("bbb", 2, 1), ("c", 3, 0), ("ddd", 4, 1), ("e", 5, 1)))
       .toDF("name", "age", "genda")
     val table = spark.sqlDirectly("select * from people")
-    spark.registerTable("mm.test", table)
+    spark.registerTempView("mm.test", table)
     val table1 = spark.sqlDirectly(
       """
         |select  genda, count(1) as cnt from mm.test group by genda
