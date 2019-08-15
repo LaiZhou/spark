@@ -58,7 +58,7 @@ case class PlanSubqueriesWithDirectChild(sparkSession: SparkSession) extends Rul
 //        ScalarSubquery(
 //          SubqueryWithDirectChildExec(s"scalar-subquery#${subquery.exprId.id}", sparkPlan),
 //          subquery.exprId)
-        throw new UnsupportedOperationException("ScalarSubquery is not supported " + subquery)
+        throw new UnsupportedOperationException("ScalarSubquery is not supported now" + subquery)
 
     }
   }
@@ -124,6 +124,18 @@ object DirectPlanConverter {
       case DynamicLocalTableScanExec(output, name) =>
         LocalTableScanDirectExec(output, name)
 
+      // window
+      case windowExec: WindowExec =>
+        WindowDirectExec(
+          windowExec.windowExpression,
+          windowExec.partitionSpec,
+          windowExec.orderSpec,
+          convertToDirectPlan(windowExec.child))
+
+      // sort
+      case sortExec: SortExec =>
+        SortDirectExec(sortExec.sortOrder, convertToDirectPlan(sortExec.child))
+
       case other =>
         if (codegenFallback) {
           convertGeneralSparkPlan(plan)
@@ -168,18 +180,6 @@ object DirectPlanConverter {
         DirectPlanAdapter(broadcastNestedLoopJoinExec)
       case cartesianProductExec: CartesianProductExec =>
         DirectPlanAdapter(cartesianProductExec)
-
-      // window
-      case windowExec: WindowExec =>
-        WindowDirectExec(
-          windowExec.windowExpression,
-          windowExec.partitionSpec,
-          windowExec.orderSpec,
-          convertToDirectPlan(windowExec.child))
-
-      // sort
-      case sortExec: SortExec =>
-        SortDirectExec(sortExec.sortOrder, convertToDirectPlan(sortExec.child))
 
       // aggregate
       case objectHashAggregateExec: ObjectHashAggregateExec =>

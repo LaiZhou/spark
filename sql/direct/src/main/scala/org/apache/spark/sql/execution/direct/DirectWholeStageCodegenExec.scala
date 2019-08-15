@@ -89,14 +89,14 @@ case class DirectWholeStageCodegenExec(plan: WholeStageCodegenExec) extends Unar
 
     var children = plan.child.children
     var parentPlan = plan.child
-    while (children.length == 1&&parentPlan.isInstanceOf[CodegenSupport]) {
+    while (children.length == 1 && parentPlan.isInstanceOf[CodegenSupport]) {
       parentPlan = children.head
       children = parentPlan.children
     }
 
     assert(children.size <= 2, "Up to two input plan can be supported")
     // we need convert input rdd to DirectPlan here
-    if (children.isEmpty) {
+    if (children.size<2) {
       val inputDirectPlan = DirectPlanConverter.convertToDirectPlan(parentPlan)
       val iter = inputDirectPlan.execute()
       val (clazz, _) = CodeGenerator.compile(cleanedSource)

@@ -26,8 +26,7 @@ import org.apache.spark.sql.execution.{InputRDDCodegen, LeafExecNode}
 import org.apache.spark.sql.execution.metric.SQLMetrics
 
 case class DynamicLocalTableScanExec(output: Seq[Attribute], name: TableIdentifier)
-    extends LeafExecNode
-    with InputRDDCodegen {
+    extends LeafExecNode {
 
   private lazy val rows: Seq[InternalRow] = {
     val foundRelation = SparkSession.active.sessionState.catalog.lookupRelation(name)
@@ -83,10 +82,5 @@ case class DynamicLocalTableScanExec(output: Seq[Attribute], name: TableIdentifi
     longMetric("numOutputRows").add(taken.size)
     taken
   }
-
-  // Input is already UnsafeRows.
-  override protected val createUnsafeProjection: Boolean = false
-
-  override def inputRDD: RDD[InternalRow] = rdd
-
+  
 }
