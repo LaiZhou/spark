@@ -26,6 +26,7 @@ import org.apache.spark.sql.catalyst.analysis.{FunctionRegistry, NoSuchDatabaseE
 import org.apache.spark.sql.catalyst.catalog._
 import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, SubqueryAlias}
+import org.apache.spark.sql.catalyst.util.StringUtils
 import org.apache.spark.sql.internal.SQLConf
 
 class DirectSessionCatalog(
@@ -116,6 +117,23 @@ class DirectSessionCatalog(
       }
     }
     isTemp
+  }
+
+  override def listLocalTempViews(pattern: String): Seq[TableIdentifier] = synchronized {
+    val directTempViewNames = directTempViews.flatMap {
+      case (dbName, tb) =>
+        tb.map {
+          case (tableName, _) => s"${dbName}.${tableName}"
+        }
+    }.toSeq
+    super.listLocalTempViews(pattern) ++ StringUtils
+      .filterPattern(directTempViewNames, pattern)
+      .map { name =>
+        {
+          val Array(dbName, tableName) = name.split("\\.")
+          TableIdentifier(tableName, Some(dbName))
+        }
+      }
   }
 
   private def requireDbExists(db: String): Unit = {
