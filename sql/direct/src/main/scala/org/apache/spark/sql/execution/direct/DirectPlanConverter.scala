@@ -136,6 +136,25 @@ object DirectPlanConverter {
       case sortExec: SortExec =>
         SortDirectExec(sortExec.sortOrder, convertToDirectPlan(sortExec.child))
 
+      // aggregate
+      case objectHashAggregateExec: ObjectHashAggregateExec =>
+        ObjectHashAggregateDirectExec(
+          objectHashAggregateExec.groupingExpressions,
+          objectHashAggregateExec.aggregateExpressions,
+          objectHashAggregateExec.aggregateAttributes,
+          objectHashAggregateExec.initialInputBufferOffset,
+          objectHashAggregateExec.resultExpressions,
+          convertToDirectPlan(objectHashAggregateExec.child))
+
+      case sortAggregateExec: SortAggregateExec =>
+        SortAggregateDirectExec(
+          sortAggregateExec.groupingExpressions,
+          sortAggregateExec.aggregateExpressions,
+          sortAggregateExec.aggregateAttributes,
+          sortAggregateExec.initialInputBufferOffset,
+          sortAggregateExec.resultExpressions,
+          convertToDirectPlan(sortAggregateExec.child))
+
       case other =>
         if (codegenFallback) {
           convertGeneralSparkPlan(plan)
@@ -181,16 +200,6 @@ object DirectPlanConverter {
       case cartesianProductExec: CartesianProductExec =>
         DirectPlanAdapter(cartesianProductExec)
 
-      // aggregate
-      case objectHashAggregateExec: ObjectHashAggregateExec =>
-        ObjectHashAggregateDirectExec(
-          objectHashAggregateExec.groupingExpressions,
-          objectHashAggregateExec.aggregateExpressions,
-          objectHashAggregateExec.aggregateAttributes,
-          objectHashAggregateExec.initialInputBufferOffset,
-          objectHashAggregateExec.resultExpressions,
-          convertToDirectPlan(objectHashAggregateExec.child))
-
       case hashAggregateExec: HashAggregateExec =>
         HashAggregateDirectExec(
           hashAggregateExec.groupingExpressions,
@@ -199,15 +208,6 @@ object DirectPlanConverter {
           hashAggregateExec.initialInputBufferOffset,
           hashAggregateExec.resultExpressions,
           convertToDirectPlan(hashAggregateExec.child))
-
-      case sortAggregateExec: SortAggregateExec =>
-        SortAggregateDirectExec(
-          sortAggregateExec.groupingExpressions,
-          sortAggregateExec.aggregateExpressions,
-          sortAggregateExec.aggregateAttributes,
-          sortAggregateExec.initialInputBufferOffset,
-          sortAggregateExec.resultExpressions,
-          convertToDirectPlan(sortAggregateExec.child))
 
       case generateExec: GenerateExec =>
         GenerateDirectExec(

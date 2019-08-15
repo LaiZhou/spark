@@ -22,7 +22,12 @@ import scala.util.control.NonFatal
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.codegen.CodeGenerator
-import org.apache.spark.sql.execution.{BufferedRowIterator, CodegenSupport, WholeStageCodegenExec}
+import org.apache.spark.sql.execution.{
+  BufferedRowIterator,
+  CodegenSupport,
+  SparkPlan,
+  WholeStageCodegenExec
+}
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.util.Utils
 
@@ -52,17 +57,41 @@ case class DirectInputAdapter(child: DirectPlan) extends UnaryDirectExecNode {
   }
 
 }
-case class DirectWholeStageCodegenExec(plan: WholeStageCodegenExec) extends UnaryDirectExecNode {
+case class DirectWholeStageCodegenExec(original: WholeStageCodegenExec)
+    extends UnaryDirectExecNode {
 
-  override def output: Seq[Attribute] = plan.output
+  override def output: Seq[Attribute] = original.output
 
-  override def child: DirectPlan = DirectPlanConverter.convertToDirectPlan(plan.child)
+  override def child: DirectPlan = DirectPlanConverter.convertToDirectPlan(original.child)
 
-  def codegenStageId: Int = plan.codegenStageId
+  val inputDirectPlans: Seq[DirectPlan] = {
+
+    var nextPlan: SparkPlan = original.child
+    var children: Seq[SparkPlan] = Seq()
+    do {
+      children = nextPlan.children
+      if (children.size == 1) {
+        nextPlan = children.head
+      }
+    } while (children.size==1 && nextPlan.isInstanceOf[CodegenSupport])
+
+    assert(
+      children.size == 1 || children.size == 2,
+      "the last plan with CodegenSupport must have one or two input plan ")
+
+    val inputSparkPlans: Seq[SparkPlan] = children.size match {
+      case 1 => Seq(nextPlan)
+      case 2 => children
+    }
+    inputSparkPlans.map(DirectPlanConverter.convertToDirectPlan)
+  }
+
+  def codegenStageId: Int = original.codegenStageId
 
   override protected def doExecute(): Iterator[InternalRow] = {
 
-    val (ctx, cleanedSource) = plan.doCodeGen()
+    // TODO cache the cleanedSource for this stage
+    val (ctx, cleanedSource) = original.doCodeGen()
     // try to compile and fallback if it failed
     val (_, maxCodeSize) = try {
       CodeGenerator.compile(cleanedSource)
@@ -87,17 +116,9 @@ case class DirectWholeStageCodegenExec(plan: WholeStageCodegenExec) extends Unar
 
     val durationMs = longMetric("pipelineTime", DirectSQLMetrics.createTimingMetric())
 
-    var children = plan.child.children
-    var parentPlan = plan.child
-    while (children.length == 1 && parentPlan.isInstanceOf[CodegenSupport]) {
-      parentPlan = children.head
-      children = parentPlan.children
-    }
-
-    assert(children.size <= 2, "Up to two input plan can be supported")
     // we need convert input rdd to DirectPlan here
-    if (children.size<2) {
-      val inputDirectPlan = DirectPlanConverter.convertToDirectPlan(parentPlan)
+    if (inputDirectPlans.length == 1) {
+      val inputDirectPlan = inputDirectPlans.head
       val iter = inputDirectPlan.execute()
       val (clazz, _) = CodeGenerator.compile(cleanedSource)
 //      var tc = new TestClass()
@@ -112,8 +133,8 @@ case class DirectWholeStageCodegenExec(plan: WholeStageCodegenExec) extends Unar
         override def next: InternalRow = buffer.next()
       }
     } else {
-      val leftDirectPlan = DirectPlanConverter.convertToDirectPlan(children.head)
-      val rightDirectPlan = DirectPlanConverter.convertToDirectPlan(children(1))
+      val leftDirectPlan = inputDirectPlans.head
+      val rightDirectPlan = inputDirectPlans(1)
       val leftIter = leftDirectPlan.execute()
       val rightIter = rightDirectPlan.execute()
       val (clazz, _) = CodeGenerator.compile(cleanedSource)
@@ -139,7 +160,7 @@ case class DirectWholeStageCodegenExec(plan: WholeStageCodegenExec) extends Unar
       prefix: String = "",
       addSuffix: Boolean = false,
       maxFields: Int): Unit = {
-    plan.generateTreeString(
+    original.generateTreeString(
       depth,
       lastChildren,
       append,
