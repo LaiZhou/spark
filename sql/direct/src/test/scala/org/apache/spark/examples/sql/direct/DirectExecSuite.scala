@@ -78,11 +78,59 @@ class DirectExecSuite extends TestBase {
 
   @Test
   def testWindow(): Unit = {
-    assertEquals(
-      """
+    assertEquals("""
         |SELECT
         |name,ROW_NUMBER() OVER (PARTITION BY genda ORDER BY name) as row
         |FROM people
+        |""".stripMargin)
+  }
+
+  @Test
+  def testLeftJoin(): Unit = {
+    assertEquals("""
+       |select
+       |* from people t1
+       |left outer join people2 t2
+       |on t1.name = t2.name
+       |""".stripMargin)
+  }
+
+  @Test
+  def testRightJoin(): Unit = {
+    assertEquals("""
+        |select
+        |* from people t1
+        |right outer join people2 t2
+        |on t1.name = t2.name
+        |""".stripMargin)
+  }
+
+  @Test
+  def testLeftSemiJoin(): Unit = {
+    assertEquals("""
+        |select
+        |* from people t1
+        |left semi join people2 t2
+        |on t1.name = t2.name
+        |""".stripMargin)
+  }
+
+  @Test
+  def testLeftAntiJoin(): Unit = {
+    assertEquals("""
+        |select
+        |* from people t1
+        |left anti join people2 t2
+        |on t1.name = t2.name
+        |""".stripMargin)
+  }
+
+  @Test
+  def testUnion(): Unit = {
+    assertEquals("""
+        |select * from people
+        |union
+        |select * from people2
         |""".stripMargin)
   }
 

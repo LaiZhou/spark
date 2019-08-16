@@ -27,10 +27,11 @@ import org.apache.spark.{SparkConf, TaskContext, TaskContextImpl}
 import org.apache.spark.internal.config.MEMORY_OFFHEAP_ENABLED
 import org.apache.spark.memory.{TaskMemoryManager, UnifiedMemoryManager}
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression, GenericInternalRow, IsNotNull, NamedExpression, NullIntolerant, PredicateHelper, UnsafeProjection, UnsafeRow}
+import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference, Expression, GenericInternalRow, IsNotNull, NamedExpression, NullIntolerant, PredicateHelper, UnsafeProjection, UnsafeRow}
 import org.apache.spark.sql.catalyst.expressions.codegen.Predicate
 import org.apache.spark.sql.execution.SQLExecution
 import org.apache.spark.sql.execution.direct.{DirectExecutionContext, DirectPlan, DirectSQLMetrics, UnaryDirectExecNode}
+import org.apache.spark.sql.types.StructType
 import org.apache.spark.util.ThreadUtils
 
 case class ProjectDirectExec(projectList: Seq[NamedExpression], child: DirectPlan)
@@ -209,4 +210,26 @@ case class LimitDirectExec(limit: Int, child: DirectPlan) extends UnaryDirectExe
 object SubqueryDirectExec {
   private[execution] val executionContext =
     ExecutionContext.fromExecutorService(ThreadUtils.newDaemonFixedThreadPool(16, "subquery"))
+}
+
+case class UnionDirectExec(children: Seq[DirectPlan]) extends DirectPlan {
+  // updating nullability to make all the children consistent
+  override def output: Seq[Attribute] = {
+    children.map(_.output).transpose.map { attrs =>
+      val firstAttr = attrs.head
+      val nullable = attrs.exists(_.nullable)
+      val newDt = attrs.map(_.dataType).reduce(StructType.merge)
+      if (firstAttr.dataType == newDt) {
+        firstAttr.withNullability(nullable)
+      } else {
+        AttributeReference(firstAttr.name, newDt, nullable, firstAttr.metadata)(
+          firstAttr.exprId,
+          firstAttr.qualifier)
+      }
+    }
+  }
+
+  override def doExecute(): Iterator[InternalRow] = {
+    children.map(_.execute()).reduce(_ ++ _)
+  }
 }

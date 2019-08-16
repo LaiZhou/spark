@@ -18,10 +18,10 @@
 package org.apache.spark.sql.execution.direct
 
 import org.apache.spark.sql.Strategy
-import org.apache.spark.sql.catalyst.expressions.{PredicateHelper, RowOrdering}
+import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.planning.ExtractEquiJoinKeys
-import org.apache.spark.sql.catalyst.plans.{logical, ExistenceJoin, FullOuter, InnerLike, JoinType, LeftAnti, LeftOuter, LeftSemi, RightOuter}
-import org.apache.spark.sql.catalyst.plans.logical.{BROADCAST, JoinHint, LogicalPlan, SHUFFLE_HASH, SHUFFLE_MERGE, SHUFFLE_REPLICATE_NL}
+import org.apache.spark.sql.catalyst.plans._
+import org.apache.spark.sql.catalyst.plans.logical.{BROADCAST, JoinHint, LogicalPlan, SHUFFLE_REPLICATE_NL}
 import org.apache.spark.sql.execution.{joins, SparkPlan}
 import org.apache.spark.sql.execution.joins.{BuildLeft, BuildRight, BuildSide}
 import org.apache.spark.sql.internal.SQLConf
@@ -48,27 +48,6 @@ object DirectPlanStrategies {
       plan.stats.sizeInBytes >= 0 && plan.stats.sizeInBytes <= conf.autoBroadcastJoinThreshold
     }
 
-    /**
-     * Matches a plan whose single partition should be small enough to build a hash table.
-     *
-     * Note: this assume that the number of partition is fixed, requires additional work if it's
-     * dynamic.
-     */
-    private def canBuildLocalHashMap(plan: LogicalPlan): Boolean = {
-      plan.stats.sizeInBytes < conf.autoBroadcastJoinThreshold * conf.numShufflePartitions
-    }
-
-    /**
-     * Returns whether plan a is much smaller (3X) than plan b.
-     *
-     * The cost to build hash map is higher than sorting, we should only build hash map on a table
-     * that is much smaller than other one. Since we does not have the statistic for number of rows,
-     * use the size of bytes here as estimation.
-     */
-    private def muchSmaller(a: LogicalPlan, b: LogicalPlan): Boolean = {
-      a.stats.sizeInBytes * 3 <= b.stats.sizeInBytes
-    }
-
     private def canBuildRight(joinType: JoinType): Boolean = joinType match {
       case _: InnerLike | LeftOuter | LeftSemi | LeftAnti | _: ExistenceJoin => true
       case _ => false
@@ -77,24 +56,6 @@ object DirectPlanStrategies {
     private def canBuildLeft(joinType: JoinType): Boolean = joinType match {
       case _: InnerLike | RightOuter => true
       case _ => false
-    }
-
-    private def getBuildSide(
-        wantToBuildLeft: Boolean,
-        wantToBuildRight: Boolean,
-        left: LogicalPlan,
-        right: LogicalPlan): Option[BuildSide] = {
-      if (wantToBuildLeft && wantToBuildRight) {
-        // returns the smaller side base on its estimated physical size, if we want to build the
-        // both sides.
-        Some(getSmallerSide(left, right))
-      } else if (wantToBuildLeft) {
-        Some(BuildLeft)
-      } else if (wantToBuildRight) {
-        Some(BuildRight)
-      } else {
-        None
-      }
     }
 
     private def getSmallerSide(left: LogicalPlan, right: LogicalPlan) = {
@@ -107,19 +68,6 @@ object DirectPlanStrategies {
 
     private def hintToBroadcastRight(hint: JoinHint): Boolean = {
       hint.rightHint.exists(_.strategy.contains(BROADCAST))
-    }
-
-    private def hintToShuffleHashLeft(hint: JoinHint): Boolean = {
-      hint.leftHint.exists(_.strategy.contains(SHUFFLE_HASH))
-    }
-
-    private def hintToShuffleHashRight(hint: JoinHint): Boolean = {
-      hint.rightHint.exists(_.strategy.contains(SHUFFLE_HASH))
-    }
-
-    private def hintToSortMergeJoin(hint: JoinHint): Boolean = {
-      hint.leftHint.exists(_.strategy.contains(SHUFFLE_MERGE)) ||
-      hint.rightHint.exists(_.strategy.contains(SHUFFLE_MERGE))
     }
 
     private def hintToShuffleReplicateNL(hint: JoinHint): Boolean = {
@@ -149,95 +97,6 @@ object DirectPlanStrategies {
       //   5. Pick broadcast nested loop join as the final solution. It may OOM but we don't have
       //      other choice.
       case ExtractEquiJoinKeys(joinType, leftKeys, rightKeys, condition, left, right, hint) =>
-        def createBroadcastHashJoin(buildLeft: Boolean, buildRight: Boolean) = {
-          val wantToBuildLeft = canBuildLeft(joinType) && buildLeft
-          val wantToBuildRight = canBuildRight(joinType) && buildRight
-          getBuildSide(wantToBuildLeft, wantToBuildRight, left, right).map { buildSide =>
-            Seq(
-              joins.BroadcastHashJoinExec(
-                leftKeys,
-                rightKeys,
-                joinType,
-                buildSide,
-                condition,
-                planLater(left),
-                planLater(right)))
-          }
-        }
-
-        def createShuffleHashJoin(buildLeft: Boolean, buildRight: Boolean) = {
-          val wantToBuildLeft = canBuildLeft(joinType) && buildLeft
-          val wantToBuildRight = canBuildRight(joinType) && buildRight
-          getBuildSide(wantToBuildLeft, wantToBuildRight, left, right).map { buildSide =>
-            Seq(
-              joins.ShuffledHashJoinExec(
-                leftKeys,
-                rightKeys,
-                joinType,
-                buildSide,
-                condition,
-                planLater(left),
-                planLater(right)))
-          }
-        }
-
-        def createSortMergeJoin() = {
-          if (RowOrdering.isOrderable(leftKeys)) {
-            Some(
-              Seq(
-                joins.SortMergeJoinExec(
-                  leftKeys,
-                  rightKeys,
-                  joinType,
-                  condition,
-                  planLater(left),
-                  planLater(right))))
-          } else {
-            None
-          }
-        }
-
-        def createCartesianProduct() = {
-          if (joinType.isInstanceOf[InnerLike]) {
-            Some(Seq(joins.CartesianProductExec(planLater(left), planLater(right), condition)))
-          } else {
-            None
-          }
-        }
-
-        def createJoinWithoutHint() = {
-          createBroadcastHashJoin(canBroadcast(left), canBroadcast(right))
-            .orElse {
-              if (!conf.preferSortMergeJoin) {
-                createShuffleHashJoin(
-                  canBuildLocalHashMap(left) && muchSmaller(left, right),
-                  canBuildLocalHashMap(right) && muchSmaller(right, left))
-              } else {
-                None
-              }
-            }
-            .orElse(createSortMergeJoin())
-            .orElse(createCartesianProduct())
-            .getOrElse {
-              // This join could be very slow or OOM
-              val buildSide = getSmallerSide(left, right)
-              Seq(
-                joins.BroadcastNestedLoopJoinExec(
-                  planLater(left),
-                  planLater(right),
-                  buildSide,
-                  joinType,
-                  condition))
-            }
-        }
-
-//        createBroadcastHashJoin(hintToBroadcastLeft(hint), hintToBroadcastRight(hint))
-//              .orElse { if (hintToSortMergeJoin(hint)) createSortMergeJoin() else None }
-//              .orElse(
-//            createShuffleHashJoin(hintToShuffleHashLeft(hint), hintToShuffleHashRight(hint)))
-//          .orElse { if (hintToShuffleReplicateNL(hint)) createCartesianProduct() else None }
-//          .getOrElse(createJoinWithoutHint())
-
         // createShuffleHashJoinForDirectMode
         def createShuffleHashJoinForDirectMode() = {
           val wantToBuildLeft = canBuildLeft(joinType)
