@@ -22,27 +22,9 @@ import org.apache.spark.sql.catalyst.expressions
 import org.apache.spark.sql.catalyst.expressions.SortOrder
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution._
-import org.apache.spark.sql.execution.aggregate.{
-  HashAggregateExec,
-  ObjectHashAggregateExec,
-  SortAggregateExec
-}
-import org.apache.spark.sql.execution.direct.general.{
-  FilterDirectExec,
-  GenerateDirectExec,
-  HashAggregateDirectExec,
-  HashJoinDirectExec,
-  ObjectHashAggregateDirectExec,
-  ProjectDirectExec,
-  SortAggregateDirectExec,
-  SortDirectExec
-}
-import org.apache.spark.sql.execution.joins.{
-  BroadcastNestedLoopJoinExec,
-  CartesianProductExec,
-  HashJoin,
-  SortMergeJoinExec
-}
+import org.apache.spark.sql.execution.aggregate.{HashAggregateExec, ObjectHashAggregateExec, SortAggregateExec}
+import org.apache.spark.sql.execution.direct.general.{FilterDirectExec, GenerateDirectExec, HashAggregateDirectExec, HashJoinDirectExec, LimitDirectExec, ObjectHashAggregateDirectExec, ProjectDirectExec, SortAggregateDirectExec, SortDirectExec}
+import org.apache.spark.sql.execution.joins.{BroadcastNestedLoopJoinExec, CartesianProductExec, HashJoin, SortMergeJoinExec}
 import org.apache.spark.sql.execution.window.{WindowDirectExec, WindowExec}
 import org.apache.spark.sql.internal.SQLConf
 
@@ -216,6 +198,10 @@ object DirectPlanConverter {
           generateExec.outer,
           generateExec.generatorOutput,
           convertToDirectPlan(generateExec.child))
+
+      // limit
+      case localLimitExec: LocalLimitExec =>
+        LimitDirectExec(localLimitExec.limit, convertToDirectPlan(localLimitExec.child))
 
       // TODO other
       case other =>
