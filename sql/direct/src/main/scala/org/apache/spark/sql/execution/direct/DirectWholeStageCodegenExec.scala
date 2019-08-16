@@ -73,7 +73,8 @@ case class DirectWholeStageCodegenExec(original: WholeStageCodegenExec)
       if (children.size == 1) {
         nextPlan = children.head
       }
-    } while (children.size==1 && nextPlan.isInstanceOf[CodegenSupport])
+    } while (children.size==1 && nextPlan.isInstanceOf[CodegenSupport]
+        && nextPlan.asInstanceOf[CodegenSupport].supportCodegen)
 
     assert(
       children.size == 1 || children.size == 2,

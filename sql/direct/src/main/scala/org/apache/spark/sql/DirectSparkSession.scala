@@ -230,6 +230,8 @@ object DirectSparkSession extends Logging {
       config("spark.sql.codegen.wholeStage", true)
       config("spark.sql.codegen.fallback", false)
       config("spark.sql.autoBroadcastJoinThreshold", 0)
+      config("spark.sql.join.preferSortMergeJoin", false)
+
 
       config("spark.sql.windowExec.buffer.in.memory.threshold", Integer.MAX_VALUE)
       master("local[1]")

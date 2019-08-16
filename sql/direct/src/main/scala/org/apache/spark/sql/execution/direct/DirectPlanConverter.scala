@@ -118,6 +118,18 @@ object DirectPlanConverter {
       case sortExec: SortExec =>
         SortDirectExec(sortExec.sortOrder, convertToDirectPlan(sortExec.child))
 
+
+      // join
+      case hashJoin: HashJoin =>
+        HashJoinDirectExec(
+          hashJoin.leftKeys,
+          hashJoin.rightKeys,
+          hashJoin.joinType,
+          hashJoin.condition,
+          convertToDirectPlan(hashJoin.left),
+          convertToDirectPlan(hashJoin.right))
+
+
       // aggregate
       case objectHashAggregateExec: ObjectHashAggregateExec =>
         ObjectHashAggregateDirectExec(
@@ -158,15 +170,6 @@ object DirectPlanConverter {
       case DynamicLocalTableScanExec(output, name) =>
         LocalTableScanDirectExec(output, name)
 
-      // join
-      case hashJoin: HashJoin =>
-        HashJoinDirectExec(
-          hashJoin.leftKeys,
-          hashJoin.rightKeys,
-          hashJoin.joinType,
-          hashJoin.condition,
-          convertToDirectPlan(hashJoin.left),
-          convertToDirectPlan(hashJoin.right))
 
       case sortMergeJoin: SortMergeJoinExec =>
         HashJoinDirectExec(
