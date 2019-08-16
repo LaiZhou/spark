@@ -149,6 +149,14 @@ object DirectPlanConverter {
           sortAggregateExec.resultExpressions,
           convertToDirectPlan(sortAggregateExec.child))
 
+      case generateExec: GenerateExec =>
+        GenerateDirectExec(
+          generateExec.generator,
+          generateExec.requiredChildOutput,
+          generateExec.outer,
+          generateExec.generatorOutput,
+          convertToDirectPlan(generateExec.child))
+
       case other =>
         if (codegenFallback) {
           convertGeneralSparkPlan(plan)
@@ -193,14 +201,6 @@ object DirectPlanConverter {
           hashAggregateExec.initialInputBufferOffset,
           hashAggregateExec.resultExpressions,
           convertToDirectPlan(hashAggregateExec.child))
-
-      case generateExec: GenerateExec =>
-        GenerateDirectExec(
-          generateExec.generator,
-          generateExec.requiredChildOutput,
-          generateExec.outer,
-          generateExec.generatorOutput,
-          convertToDirectPlan(generateExec.child))
 
       // limit
       case localLimitExec: LocalLimitExec =>
