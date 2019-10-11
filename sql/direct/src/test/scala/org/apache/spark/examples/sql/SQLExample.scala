@@ -73,9 +73,7 @@ object SQLExample {
     //    val rt = sqlDF.collect()
     val s1 = StopWatch.createStarted()
     val sqlDF = spark.sql("""
-                                    |select sum(age), sum(genda) from people where age < (
-                                    |select max(age) from people
-                                    |)
+                                    |select sum(age) from people
                                     |""".stripMargin)
     val rt = sqlDF.collect()
     s1.stop()
